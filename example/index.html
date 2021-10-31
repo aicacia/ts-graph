@@ -1,0 +1,41 @@
+<script defer type="module" src="index.ts"></script>
+
+<div class="container">
+  <div class="left-half">
+    <h1>Client</h1>
+    <div id="client">
+      <pre><code id="client-code"></code></pre>
+    </div>
+  </div>
+  <div class="right-half">
+    <h1>Server</h1>
+    <div id="server">
+      <pre><code id="server-code"></code></pre>
+    </div>
+  </div>
+</div>
+
+<style>
+  html,
+  body {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+  }
+  h1 {
+    margin: 0;
+  }
+  .container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+  }
+  .left-half {
+    flex: 1;
+    padding: 1rem;
+  }
+  .right-half {
+    flex: 1;
+    padding: 1rem;
+  }
+</style>
