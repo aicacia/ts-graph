@@ -120,7 +120,6 @@ export class GraphRef {
             }
         };
         this.graph.on("set", onSet);
-        onSet(this.graph.toJSON());
         return () => {
             this.graph.off("set", onSet);
         };
@@ -198,12 +197,7 @@ export class Graph extends EventEmitter {
         return this;
     }
     toJSON() {
-        return Array.from(this.entries.entries()).reduce((json, [key, node]) => {
-            if (!node.isEmpty()) {
-                json[key] = node.toJSON();
-            }
-            return json;
-        }, {});
+        return Array.from(this.entries.values()).reduce((json, node) => node.toGraphJSON(json), {});
     }
     mergeInternal(path, json) {
         const jsonState = json.state, node = this.getPathNode(path);

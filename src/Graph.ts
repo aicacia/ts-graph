@@ -170,7 +170,6 @@ export class GraphRef {
       }
     };
     this.graph.on("set", onSet);
-    onSet(this.graph.toJSON());
     return () => {
       this.graph.off("set", onSet);
     };
@@ -270,12 +269,10 @@ export class Graph extends EventEmitter<IGraphEvents> {
   }
 
   toJSON() {
-    return Array.from(this.entries.entries()).reduce((json, [key, node]) => {
-      if (!node.isEmpty()) {
-        json[key] = node.toJSON();
-      }
-      return json;
-    }, {} as IGraphJSON);
+    return Array.from(this.entries.values()).reduce(
+      (json, node) => node.toGraphJSON(json),
+      {} as IGraphJSON
+    );
   }
 
   private mergeInternal(path: string, json: INodeJSON | IEdgeJSON | IRefJSON) {
