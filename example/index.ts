@@ -29,7 +29,7 @@ function onLoad() {
 
   server
     .on("set", (json) => {
-      client.merge(json, false);
+      client.merge(json);
       render();
     })
     .on("get", (path) => {
@@ -38,7 +38,7 @@ function onLoad() {
     });
   client
     .on("set", (json) => {
-      server.merge(json, false);
+      server.merge(json);
       render();
     })
     .on("get", (path) => {

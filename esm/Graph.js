@@ -115,11 +115,15 @@ export class GraphRef {
             const node = this.getNode();
             if (node) {
                 if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
-                    callback(this.graph.getPathValue(this.getPath()));
+                    callback(getNodeValue(node));
                 }
             }
         };
         this.graph.on("change", onChange);
+        const currentValue = this.getValue();
+        if (currentValue) {
+            callback(currentValue);
+        }
         return () => {
             this.graph.off("change", onChange);
         };
@@ -195,8 +199,8 @@ export class Graph extends EventEmitter {
         }
         if (wasMerged) {
             this.state = maxState;
+            this.emit("change", merged);
         }
-        this.emit("change", merged);
         return this;
     }
     toJSON() {
