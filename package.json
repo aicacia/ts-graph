@@ -61,6 +61,9 @@
   "peerDependencies": {
     "tslib": "2"
   },
+  "dependencies": {
+    "eventemitter3": "4"
+  },
   "nyc": {
     "include": [
       "src"
@@ -72,8 +75,5 @@
       ".ts",
       ".tsx"
     ]
-  },
-  "dependencies": {
-    "eventemitter3": "^4.0.7"
   }
 }

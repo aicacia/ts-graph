@@ -61,6 +61,9 @@ class Edge extends Entry {
       ? this.value.toJSON()
       : { value: this.value, state: this.state };
   }
+  toGraphJSON(json: IGraphJSON = {}): IGraphJSON {
+    return toGraphJSONInternal(this, json);
+  }
 }
 
 export interface INodeJSON {
@@ -77,9 +80,10 @@ class Node extends Entry {
     );
   }
   toJSON(): INodeJSON {
-    return {
-      state: this.state,
-    };
+    return { state: this.state };
+  }
+  toGraphJSON(json: IGraphJSON = {}): IGraphJSON {
+    return toGraphJSONInternal(this, json);
   }
 }
 
