@@ -160,7 +160,7 @@ export class GraphRef {
     return this.graph.getPathNode(this.getPath());
   }
   on(callback: (value: IValue | undefined) => void) {
-    const onSet = (json: IGraphJSON) => {
+    const onChange = (json: IGraphJSON) => {
       const node = this.getNode();
 
       if (node) {
@@ -169,9 +169,9 @@ export class GraphRef {
         }
       }
     };
-    this.graph.on("set", onSet);
+    this.graph.on("change", onChange);
     return () => {
-      this.graph.off("set", onSet);
+      this.graph.off("change", onChange);
     };
   }
 
@@ -194,6 +194,7 @@ export interface IGraphJSON {
 export interface IGraphEvents {
   get(this: Graph, path: string): void;
   set(this: Graph, json: IGraphJSON): void;
+  change(this: Graph, json: IGraphJSON): void;
 }
 
 export class Graph extends EventEmitter<IGraphEvents> {
@@ -231,21 +232,25 @@ export class Graph extends EventEmitter<IGraphEvents> {
 
   setAtPath(path: string, value: ISetValue) {
     this.state = Date.now();
-    const node = this.setInternal(path, value, this.state);
-    this.emit("set", toGraphJSON(node));
+    const node = this.setInternal(path, value, this.state),
+      json = node.toGraphJSON();
+    this.emit("set", json);
+    this.emit("change", json);
     return this;
   }
 
-  merge(json: IGraphJSON, emit = true) {
+  merge(json: IGraphJSON) {
     const maxState = Date.now(),
       prevInvalidStates = this.invalidStates.length,
       merged: IGraphJSON = {};
 
-    let maxInvalidState = maxState;
+    let maxInvalidState = maxState,
+      wasMerged = false;
     for (const [key, value] of Object.entries(json)) {
       if (value.state <= maxState) {
         this.mergeInternal(key, value);
         merged[key] = value;
+        wasMerged = true;
       } else {
         const index = this.invalidStates.findIndex(
           ([_, j]) => value.state < j.state
@@ -262,9 +267,10 @@ export class Graph extends EventEmitter<IGraphEvents> {
     if (prevInvalidStates !== this.invalidStates.length) {
       this.handleInvalidStates(maxState, maxInvalidState);
     }
-    if (emit) {
-      this.emit("set", merged);
+    if (wasMerged) {
+      this.state = maxState;
     }
+    this.emit("change", merged);
     return this;
   }
 
@@ -342,7 +348,8 @@ export class Graph extends EventEmitter<IGraphEvents> {
 
       if (index !== -1) {
         invalidStates.splice(index, invalidStates.length - index);
-        this.emit("set", graphJSON);
+        this.state = newMaxState;
+        this.emit("change", graphJSON);
       }
       if (invalidStates.length) {
         this.handleInvalidStates(newMaxState, invalidStates[0][1].state);

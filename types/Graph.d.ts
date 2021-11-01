@@ -73,6 +73,7 @@ export interface IGraphJSON {
 export interface IGraphEvents {
     get(this: Graph, path: string): void;
     set(this: Graph, json: IGraphJSON): void;
+    change(this: Graph, json: IGraphJSON): void;
 }
 export declare class Graph extends EventEmitter<IGraphEvents> {
     protected entries: Map<string, Node | Edge>;
@@ -88,7 +89,7 @@ export declare class Graph extends EventEmitter<IGraphEvents> {
     getPathValue(path: string, emit?: boolean): IValue | undefined;
     getPathNode(path: string): Node | Edge | undefined;
     setAtPath(path: string, value: ISetValue): this;
-    merge(json: IGraphJSON, emit?: boolean): this;
+    merge(json: IGraphJSON): this;
     toJSON(): IGraphJSON;
     private mergeInternal;
     private handleInvalidStates;

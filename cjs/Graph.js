@@ -106,7 +106,7 @@ class GraphRef {
         return this.graph.getPathNode(this.getPath());
     }
     on(callback) {
-        const onSet = (json) => {
+        const onChange = (json) => {
             const node = this.getNode();
             if (node) {
                 if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
@@ -114,9 +114,9 @@ class GraphRef {
                 }
             }
         };
-        this.graph.on("set", onSet);
+        this.graph.on("change", onChange);
         return () => {
-            this.graph.off("set", onSet);
+            this.graph.off("change", onChange);
         };
     }
     getPath() {
@@ -163,17 +163,19 @@ class Graph extends eventemitter3_1.EventEmitter {
     }
     setAtPath(path, value) {
         this.state = Date.now();
-        const node = this.setInternal(path, value, this.state);
-        this.emit("set", toGraphJSON(node));
+        const node = this.setInternal(path, value, this.state), json = node.toGraphJSON();
+        this.emit("set", json);
+        this.emit("change", json);
         return this;
     }
-    merge(json, emit = true) {
+    merge(json) {
         const maxState = Date.now(), prevInvalidStates = this.invalidStates.length, merged = {};
-        let maxInvalidState = maxState;
+        let maxInvalidState = maxState, wasMerged = false;
         for (const [key, value] of Object.entries(json)) {
             if (value.state <= maxState) {
                 this.mergeInternal(key, value);
                 merged[key] = value;
+                wasMerged = true;
             }
             else {
                 const index = this.invalidStates.findIndex(([_, j]) => value.state < j.state);
@@ -189,9 +191,10 @@ class Graph extends eventemitter3_1.EventEmitter {
         if (prevInvalidStates !== this.invalidStates.length) {
             this.handleInvalidStates(maxState, maxInvalidState);
         }
-        if (emit) {
-            this.emit("set", merged);
+        if (wasMerged) {
+            this.state = maxState;
         }
+        this.emit("change", merged);
         return this;
     }
     toJSON() {
@@ -249,7 +252,8 @@ class Graph extends eventemitter3_1.EventEmitter {
             }
             if (index !== -1) {
                 invalidStates.splice(index, invalidStates.length - index);
-                this.emit("set", graphJSON);
+                this.state = newMaxState;
+                this.emit("change", graphJSON);
             }
             if (invalidStates.length) {
                 this.handleInvalidStates(newMaxState, invalidStates[0][1].state);
