@@ -35,6 +35,9 @@ class Edge extends Entry {
             ? this.value.toJSON()
             : { value: this.value, state: this.state };
     }
+    toGraphJSON(json = {}) {
+        return toGraphJSONInternal(this, json);
+    }
 }
 class Node extends Entry {
     constructor() {
@@ -46,9 +49,10 @@ class Node extends Entry {
             Array.from(this.children.values()).every((child) => child.isEmpty()));
     }
     toJSON() {
-        return {
-            state: this.state,
-        };
+        return { state: this.state };
+    }
+    toGraphJSON(json = {}) {
+        return toGraphJSONInternal(this, json);
     }
 }
 class Ref {

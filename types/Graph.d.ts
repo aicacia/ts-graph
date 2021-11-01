@@ -26,6 +26,7 @@ declare class Edge extends Entry {
     constructor(graph: Graph, parent: Node | null, key: string, value: IPrimitive | Ref, state: number);
     isEmpty(): boolean;
     toJSON(): IEdgeJSON | IRefJSON;
+    toGraphJSON(json?: IGraphJSON): IGraphJSON;
 }
 export interface INodeJSON {
     state: number;
@@ -34,6 +35,7 @@ declare class Node extends Entry {
     children: Map<string, Node | Edge>;
     isEmpty(): boolean;
     toJSON(): INodeJSON;
+    toGraphJSON(json?: IGraphJSON): IGraphJSON;
 }
 export interface IRefJSON {
     id: string;

@@ -1,1 +1,1 @@
-export { Graph, GraphRef, SEPERATOR, getNodeValue, getParentPath, getParentPathAndKey, } from "./Graph";
+export { Graph, GraphRef, SEPERATOR, toGraphJSON, getNodeValue, getParentPath, getParentPathAndKey, } from "./Graph";
