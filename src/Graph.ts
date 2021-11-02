@@ -565,7 +565,7 @@ function getPathValue(
     value = getNodeValue(node);
     path = node.getPath();
   }
-  if (emit) {
+  if (value === undefined && emit) {
     graph.emit("get", path);
   }
   return value;

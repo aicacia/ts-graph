@@ -439,7 +439,7 @@ function getPathValue(graph, node, path, emit = true) {
         value = getNodeValue(node);
         path = node.getPath();
     }
-    if (emit) {
+    if (value === undefined && emit) {
         graph.emit("get", path);
     }
     return value;

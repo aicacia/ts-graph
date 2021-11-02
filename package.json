@@ -35,6 +35,7 @@
   "license": "(MIT OR Apache-2.0)",
   "readmeFilename": "README.md",
   "devDependencies": {
+    "@aicacia/mesh": "github:aicacia/ts-mesh#c87807f5f301b8cf54212d8c566e52b2256cc754",
     "@rollup/plugin-commonjs": "21",
     "@rollup/plugin-node-resolve": "13",
     "@rollup/plugin-typescript": "8",
@@ -50,6 +51,7 @@
     "prettier": "2",
     "rollup-plugin-esm-import-to-url": "2",
     "rollup-plugin-terser": "7",
+    "simple-peer": "^9.11.0",
     "tap-nyc": "1",
     "tap-spec": "5",
     "tape": "5",

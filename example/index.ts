@@ -1,65 +1,97 @@
+import SimplePeer from "simple-peer";
+import { Mesh, Peer } from "@aicacia/mesh";
 import { Graph } from "../src";
+import { IGraphJSON } from "../src/Graph";
 
 declare global {
   interface Window {
-    server: Graph;
-    client: Graph;
+    peer: Peer;
+    mesh: Mesh;
+    graph: Graph;
   }
 }
 
-function onLoad() {
-  const server = new Graph();
-  const client = new Graph();
+type IMessage =
+  | {
+      type: "set";
+      json: IGraphJSON;
+    }
+  | {
+      type: "get";
+      path: string;
+    };
 
-  window.server = server;
-  window.client = client;
+async function onLoad() {
+  const peer = new Peer(SimplePeer, {
+      namespace: "example-graph",
+    }),
+    mesh = new Mesh(peer),
+    graph = new Graph();
 
-  function render() {
-    document.getElementById("client-code").innerText = JSON.stringify(
-      client,
-      null,
-      2
-    );
-    document.getElementById("server-code").innerText = JSON.stringify(
-      server,
-      null,
-      2
-    );
-  }
+  window.graph = graph;
+  window.graph = graph;
+  window.graph = graph;
 
-  server
+  graph
     .on("set", (json) => {
-      client.merge(json);
-      render();
+      console.log("request set", json);
+      mesh.broadcast({
+        type: "set",
+        json,
+      });
     })
     .on("get", (path) => {
-      const value = client.getPathValue(path, false);
-      console.log("server get", path, value);
-    });
-  client
-    .on("set", (json) => {
-      server.merge(json);
-      render();
-    })
-    .on("get", (path) => {
-      const value = server.getPathValue(path, false);
-      console.log("client get", path, value);
+      console.log("request get", path);
+      mesh.broadcast({
+        type: "get",
+        path,
+      });
     });
 
-  server.get("nathan").set({
-    name: "Nathan",
-    children: {
-      billy: server.get("billy").set({
-        name: "Billy",
-        parent: server.get("nathan"),
-        parentName: server.get("nathan").get("name"),
-      }),
-    },
+  mesh.on("data", (data: IMessage) => {
+    console.log(data);
+    if (data.type === "set") {
+      console.log("reveived set", data.json);
+      graph.merge(data.json);
+    } else if (data.type === "get") {
+      console.log("reveived get", data.path);
+      const node = graph.getPathNode(data.path);
+
+      console.log(node);
+
+      if (node) {
+        mesh.broadcast({
+          type: "set",
+          json: node.toGraphJSON(),
+        });
+      }
+    }
   });
 
-  server.get("nathan").on((state) => {
-    console.log(state);
+  await peer.connected();
+
+  graph
+    .get("rooms")
+    .get("r1")
+    .get("users")
+    .on((users: any) => {
+      document.getElementById("json").innerText = JSON.stringify(
+        users,
+        null,
+        2
+      );
+    });
+
+  /*
+  graph.get("rooms").get('r1').set({
+    users: {
+      u1: {
+        name: 'Nathan'
+      }
+    }
   });
+  graph.get('rooms').get('r1').get('users').get('u2').set({name: "Billy"})
+  */
 }
 
 window.addEventListener("load", onLoad);

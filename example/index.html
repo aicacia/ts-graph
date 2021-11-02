@@ -1,16 +1,10 @@
 <script defer type="module" src="index.ts"></script>
 
 <div class="container">
-  <div class="left-half">
-    <h1>Client</h1>
-    <div id="client">
-      <pre><code id="client-code"></code></pre>
-    </div>
-  </div>
-  <div class="right-half">
-    <h1>Server</h1>
-    <div id="server">
-      <pre><code id="server-code"></code></pre>
+  <div class="row">
+    <h1>Graph</h1>
+    <div>
+      <pre><code id="json"></code></pre>
     </div>
   </div>
 </div>
@@ -30,11 +24,7 @@
     flex-direction: row;
     justify-content: center;
   }
-  .left-half {
-    flex: 1;
-    padding: 1rem;
-  }
-  .right-half {
+  .row {
     flex: 1;
     padding: 1rem;
   }
