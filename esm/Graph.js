@@ -115,7 +115,7 @@ export class GraphRef {
             const node = this.getNode();
             if (node) {
                 if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
-                    callback(getNodeValue(node));
+                    callback(getPathValue(node.graph, node, node.getPath()));
                 }
             }
         };
@@ -127,6 +127,24 @@ export class GraphRef {
         return () => {
             this.graph.off("change", onChange);
         };
+    }
+    once(callback) {
+        const currentValue = this.getValue();
+        if (currentValue) {
+            callback(currentValue);
+        }
+        else {
+            const onChange = (json) => {
+                const node = this.getNode();
+                if (node) {
+                    if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
+                        this.graph.off("change", onChange);
+                        callback(getPathValue(node.graph, node, node.getPath()));
+                    }
+                }
+            };
+            this.graph.on("change", onChange);
+        }
     }
     getPath() {
         if (this.parent) {
@@ -153,16 +171,7 @@ export class Graph extends EventEmitter {
         return new GraphRef(this, null, key);
     }
     getPathValue(path, emit = true) {
-        const node = this.getPathNode(path);
-        let value;
-        if (node) {
-            value = getNodeValue(node);
-            path = node.getPath();
-        }
-        if (value === undefined && emit) {
-            this.emit("get", path);
-        }
-        return value;
+        return getPathValue(this, getPathNode(this, path), path, emit);
     }
     getPathNode(path) {
         return getPathNode(this, path);
@@ -420,6 +429,17 @@ function toGraphJSONInternal(node, json) {
         }
     }
     return json;
+}
+function getPathValue(graph, node, path, emit = true) {
+    let value;
+    if (node) {
+        value = getNodeValue(node);
+        path = node.getPath();
+    }
+    if (emit) {
+        graph.emit("get", path);
+    }
+    return value;
 }
 function getPathNode(graph, path) {
     const keys = path.split(SEPERATOR), key = keys.shift(), node = graph.getEntries().get(key);

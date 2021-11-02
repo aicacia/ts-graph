@@ -165,7 +165,7 @@ export class GraphRef {
 
       if (node) {
         if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
-          callback(getNodeValue(node));
+          callback(getPathValue(node.graph, node, node.getPath()));
         }
       }
     };
@@ -177,6 +177,24 @@ export class GraphRef {
     return () => {
       this.graph.off("change", onChange);
     };
+  }
+  once(callback: (value: IValue | undefined) => void) {
+    const currentValue = this.getValue();
+    if (currentValue) {
+      callback(currentValue);
+    } else {
+      const onChange = (json: IGraphJSON) => {
+        const node = this.getNode();
+
+        if (node) {
+          if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
+            this.graph.off("change", onChange);
+            callback(getPathValue(node.graph, node, node.getPath()));
+          }
+        }
+      };
+      this.graph.on("change", onChange);
+    }
   }
 
   getPath(): string {
@@ -218,17 +236,7 @@ export class Graph extends EventEmitter<IGraphEvents> {
     return new GraphRef(this, null, key);
   }
   getPathValue(path: string, emit = true): IValue | undefined {
-    const node = this.getPathNode(path);
-    let value: IValue | undefined;
-
-    if (node) {
-      value = getNodeValue(node);
-      path = node.getPath();
-    }
-    if (value === undefined && emit) {
-      this.emit("get", path);
-    }
-    return value;
+    return getPathValue(this, getPathNode(this, path), path, emit);
   }
   getPathNode(path: string) {
     return getPathNode(this, path);
@@ -543,6 +551,24 @@ function toGraphJSONInternal(node: Node | Edge, json: IGraphJSON) {
   }
 
   return json;
+}
+
+function getPathValue(
+  graph: Graph,
+  node: Node | Edge | undefined,
+  path: string,
+  emit = true
+): IValue | undefined {
+  let value: IValue | undefined;
+
+  if (node) {
+    value = getNodeValue(node);
+    path = node.getPath();
+  }
+  if (emit) {
+    graph.emit("get", path);
+  }
+  return value;
 }
 
 function getPathNode(graph: Graph, path: string): Node | Edge | undefined {

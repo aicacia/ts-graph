@@ -64,6 +64,7 @@ export declare class GraphRef {
     getValue(): IValue | undefined;
     getNode(): Node | Edge | undefined;
     on(callback: (value: IValue | undefined) => void): () => void;
+    once(callback: (value: IValue | undefined) => void): void;
     getPath(): string;
     getChildPath(key: string): string;
 }
