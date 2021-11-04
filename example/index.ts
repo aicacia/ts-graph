@@ -77,6 +77,14 @@ async function onLoad() {
       console.log(users);
     });
 
+  await graph
+    .get("rooms")
+    .get("r1")
+    .get("users")
+    .then((users) => {
+      console.log(users);
+    });
+
   /*
   graph.get("rooms").get('r1').set({
     users: {

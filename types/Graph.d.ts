@@ -44,7 +44,7 @@ export declare class Edge extends Entry {
 export interface IRefJSON extends IEntryJSON {
     id: string;
 }
-export declare class Ref {
+export declare class Ref implements PromiseLike<IGetValue | undefined> {
     protected graph: Graph;
     protected path: string;
     protected state: number;
@@ -56,6 +56,7 @@ export declare class Ref {
     getNode(): Node | Edge | undefined;
     getState(): number;
     on(callback: (value: IGetValue | undefined) => void): () => void;
+    then<T = IGetValue | undefined, E = never>(onfulfilled?: ((value: IGetValue | undefined) => T | PromiseLike<T>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<T | E>;
     toJSON(): IRefJSON;
 }
 export interface IGraphEvents {

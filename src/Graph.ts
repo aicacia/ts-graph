@@ -101,7 +101,7 @@ export interface IRefJSON extends IEntryJSON {
   id: string;
 }
 
-export class Ref {
+export class Ref implements PromiseLike<IGetValue | undefined> {
   protected graph: Graph;
   protected path: string;
   protected state: number;
@@ -145,6 +145,31 @@ export class Ref {
     return () => {
       this.graph.off("change", onChange);
     };
+  }
+
+  then<T = IGetValue | undefined, E = never>(
+    onfulfilled?:
+      | ((value: IGetValue | undefined) => T | PromiseLike<T>)
+      | undefined
+      | null,
+    onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null
+  ): PromiseLike<T | E> {
+    const value = this.getValue();
+    let promise: PromiseLike<IGetValue | undefined>;
+
+    if (value !== undefined) {
+      promise = Promise.resolve(value);
+    } else {
+      promise = new Promise((resolve) => {
+        const onChange = (path: string) => {
+          if (path.startsWith(this.path)) {
+            resolve(this.getValue());
+          }
+        };
+        this.graph.once("change", onChange);
+      });
+    }
+    return promise.then(onfulfilled, onrejected);
   }
 
   toJSON(): IRefJSON {

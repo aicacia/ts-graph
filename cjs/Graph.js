@@ -99,6 +99,24 @@ class Ref {
             this.graph.off("change", onChange);
         };
     }
+    then(onfulfilled, onrejected) {
+        const value = this.getValue();
+        let promise;
+        if (value !== undefined) {
+            promise = Promise.resolve(value);
+        }
+        else {
+            promise = new Promise((resolve) => {
+                const onChange = (path) => {
+                    if (path.startsWith(this.path)) {
+                        resolve(this.getValue());
+                    }
+                };
+                this.graph.once("change", onChange);
+            });
+        }
+        return promise.then(onfulfilled, onrejected);
+    }
     toJSON() {
         return {
             id: this.path,
