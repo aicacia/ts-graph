@@ -65,6 +65,7 @@ export interface IGraphEvents {
     change(this: Graph, path: string, value: IRefJSON | IEdgeJSON | INodeJSON): void;
 }
 export declare class Graph extends EventEmitter<IGraphEvents> {
+    protected listening: Set<string>;
     protected state: number;
     protected entries: Map<string, Node | Edge>;
     getEntries(): ReadonlyMap<string, Node | Edge>;
@@ -73,6 +74,8 @@ export declare class Graph extends EventEmitter<IGraphEvents> {
     getNodeAtPath(path: string): Node | Edge | undefined;
     set(path: string, value: ISetValue): this;
     merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON): this;
+    listenTo(path: string): this;
+    isListeningTo(path: string): boolean;
     toJSON(): {
         [key: string]: INodeJSON | IEdgeJSON | IRefJSON;
         [key: number]: INodeJSON | IEdgeJSON | IRefJSON;

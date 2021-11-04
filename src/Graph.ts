@@ -191,6 +191,7 @@ export interface IGraphEvents {
 }
 
 export class Graph extends EventEmitter<IGraphEvents> {
+  protected listening: Set<string> = new Set();
   protected state = Date.now();
   protected entries: Map<string, Node | Edge> = new Map();
 
@@ -209,7 +210,7 @@ export class Graph extends EventEmitter<IGraphEvents> {
     if (node) {
       return getValueAtPath(keys, node, new Map());
     } else {
-      this.emit("get", path);
+      this.listenTo(path);
       return undefined;
     }
   }
@@ -228,8 +229,25 @@ export class Graph extends EventEmitter<IGraphEvents> {
   }
 
   merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON) {
-    this.mergePathInternal(path, json);
+    if (this.isListeningTo(path)) {
+      this.mergePathInternal(path, json);
+    }
     return this;
+  }
+
+  listenTo(path: string) {
+    this.listening.add(path);
+    this.emit("get", path);
+    return this;
+  }
+
+  isListeningTo(path: string) {
+    for (const listeningPath of this.listening) {
+      if (path.startsWith(listeningPath)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   toJSON() {
@@ -416,7 +434,7 @@ function getValueAtPath(
       if (child) {
         return getValueAtPath(keys, child, values);
       } else {
-        node.graph.emit("get", node.getPath() + SEPERATOR + key);
+        node.graph.listenTo(node.getPath() + SEPERATOR + key);
         values.set(node, undefined);
         return undefined;
       }
@@ -447,7 +465,7 @@ function getValueAtPath(
     }
   } else if (node.value instanceof Ref) {
     if (node.getPath() === node.value.getPath()) {
-      node.graph.emit("get", node.value.getPath());
+      node.graph.listenTo(node.value.getPath());
       values.set(node, undefined);
       return undefined;
     }
@@ -456,7 +474,7 @@ function getValueAtPath(
     if (refNode) {
       return getValueAtPath(keys, refNode, values);
     } else {
-      node.graph.emit("get", node.value.getPath());
+      node.graph.listenTo(node.value.getPath());
       values.set(node, undefined);
       return undefined;
     }

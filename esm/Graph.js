@@ -124,6 +124,7 @@ export class Ref {
     }
 }
 export class Graph extends EventEmitter {
+    listening = new Set();
     state = Date.now();
     entries = new Map();
     getEntries() {
@@ -138,7 +139,7 @@ export class Graph extends EventEmitter {
             return getValueAtPath(keys, node, new Map());
         }
         else {
-            this.emit("get", path);
+            this.listenTo(path);
             return undefined;
         }
     }
@@ -152,8 +153,23 @@ export class Graph extends EventEmitter {
         return this;
     }
     merge(path, json) {
-        this.mergePathInternal(path, json);
+        if (this.isListeningTo(path)) {
+            this.mergePathInternal(path, json);
+        }
         return this;
+    }
+    listenTo(path) {
+        this.listening.add(path);
+        this.emit("get", path);
+        return this;
+    }
+    isListeningTo(path) {
+        for (const listeningPath of this.listening) {
+            if (path.startsWith(listeningPath)) {
+                return true;
+            }
+        }
+        return false;
     }
     toJSON() {
         return nodeMapToJSON(this.entries, {}, undefined, true);
@@ -298,7 +314,7 @@ function getValueAtPath(keys, node, values) {
                 return getValueAtPath(keys, child, values);
             }
             else {
-                node.graph.emit("get", node.getPath() + SEPERATOR + key);
+                node.graph.listenTo(node.getPath() + SEPERATOR + key);
                 values.set(node, undefined);
                 return undefined;
             }
@@ -328,7 +344,7 @@ function getValueAtPath(keys, node, values) {
     }
     else if (node.value instanceof Ref) {
         if (node.getPath() === node.value.getPath()) {
-            node.graph.emit("get", node.value.getPath());
+            node.graph.listenTo(node.value.getPath());
             values.set(node, undefined);
             return undefined;
         }
@@ -337,7 +353,7 @@ function getValueAtPath(keys, node, values) {
             return getValueAtPath(keys, refNode, values);
         }
         else {
-            node.graph.emit("get", node.value.getPath());
+            node.graph.listenTo(node.value.getPath());
             values.set(node, undefined);
             return undefined;
         }
