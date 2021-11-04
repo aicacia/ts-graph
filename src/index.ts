@@ -1,10 +1,17 @@
-export type { IPrimitive, IValue } from "./Graph";
+export type {
+  IPrimitive,
+  IGetValue,
+  ISetValue,
+  IEdgeJSON,
+  IGraphEvents,
+  IRefJSON,
+} from "./Graph";
 export {
   Graph,
-  GraphRef,
-  SEPERATOR,
-  toGraphJSON,
-  getNodeValue,
+  Entry,
+  Node,
+  Edge,
+  Ref,
   getParentPath,
   getParentPathAndKey,
 } from "./Graph";

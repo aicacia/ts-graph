@@ -35,7 +35,7 @@
   "license": "(MIT OR Apache-2.0)",
   "readmeFilename": "README.md",
   "devDependencies": {
-    "@aicacia/mesh": "github:aicacia/ts-mesh#c87807f5f301b8cf54212d8c566e52b2256cc754",
+    "@aicacia/mesh": "github:aicacia/ts-mesh#f5bb29061e0e37aed002f555826ff5e7c402fb77",
     "@rollup/plugin-commonjs": "21",
     "@rollup/plugin-node-resolve": "13",
     "@rollup/plugin-typescript": "8",

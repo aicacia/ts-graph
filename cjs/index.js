@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getParentPathAndKey = exports.getParentPath = exports.getNodeValue = exports.toGraphJSON = exports.SEPERATOR = exports.GraphRef = exports.Graph = void 0;
+exports.getParentPathAndKey = exports.getParentPath = exports.Ref = exports.Edge = exports.Node = exports.Entry = exports.Graph = void 0;
 var Graph_1 = require("./Graph");
 Object.defineProperty(exports, "Graph", { enumerable: true, get: function () { return Graph_1.Graph; } });
-Object.defineProperty(exports, "GraphRef", { enumerable: true, get: function () { return Graph_1.GraphRef; } });
-Object.defineProperty(exports, "SEPERATOR", { enumerable: true, get: function () { return Graph_1.SEPERATOR; } });
-Object.defineProperty(exports, "toGraphJSON", { enumerable: true, get: function () { return Graph_1.toGraphJSON; } });
-Object.defineProperty(exports, "getNodeValue", { enumerable: true, get: function () { return Graph_1.getNodeValue; } });
+Object.defineProperty(exports, "Entry", { enumerable: true, get: function () { return Graph_1.Entry; } });
+Object.defineProperty(exports, "Node", { enumerable: true, get: function () { return Graph_1.Node; } });
+Object.defineProperty(exports, "Edge", { enumerable: true, get: function () { return Graph_1.Edge; } });
+Object.defineProperty(exports, "Ref", { enumerable: true, get: function () { return Graph_1.Ref; } });
 Object.defineProperty(exports, "getParentPath", { enumerable: true, get: function () { return Graph_1.getParentPath; } });
 Object.defineProperty(exports, "getParentPathAndKey", { enumerable: true, get: function () { return Graph_1.getParentPathAndKey; } });

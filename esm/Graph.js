@@ -1,6 +1,6 @@
 import { EventEmitter } from "eventemitter3";
 export const SEPERATOR = "/";
-class Entry {
+export class Entry {
     graph;
     parent;
     key;
@@ -12,49 +12,51 @@ class Entry {
         this.state = state;
     }
     getPath() {
-        if (this.parent) {
-            return this.parent.getPath() + SEPERATOR + this.key;
-        }
-        else {
-            return this.key;
-        }
+        return this.parent
+            ? this.parent.getPath() + SEPERATOR + this.key
+            : this.key;
     }
-    getChildPath(key) {
-        return this.getPath() + SEPERATOR + key;
+    toJSON() {
+        return {
+            state: this.state,
+        };
     }
 }
-class Edge extends Entry {
-    value;
-    constructor(graph, parent, key, value, state) {
-        super(graph, parent, key, state);
-        this.value = value;
+export class Node extends Entry {
+    children = new Map();
+    toNodesJSON() {
+        return nodeMapToJSON(this.children, {}, this.getPath(), false);
     }
-    isEmpty() {
-        return (this.value == null || (this.value instanceof Ref && this.value.isEmpty()));
+    toJSON() {
+        const children = {};
+        for (const [key, child] of this.children) {
+            if (child instanceof Node) {
+                children[key] = { state: child.state, id: child.getPath() };
+            }
+            else {
+                children[key] = child.toJSON();
+            }
+        }
+        return {
+            state: this.state,
+            children,
+        };
+    }
+}
+export class Edge extends Entry {
+    value;
+    constructor(graph, parent, key, state, value) {
+        super(graph, parent, key, state);
+        this.state = state;
+        this.value = value;
     }
     toJSON() {
         return this.value instanceof Ref
             ? this.value.toJSON()
-            : { value: this.value, state: this.state };
-    }
-    toGraphJSON(json = {}) {
-        return toGraphJSONInternal(this, json);
+            : { state: this.state, value: this.value };
     }
 }
-class Node extends Entry {
-    children = new Map();
-    isEmpty() {
-        return (this.children.size === 0 ||
-            Array.from(this.children.values()).every((child) => child.isEmpty()));
-    }
-    toJSON() {
-        return { state: this.state };
-    }
-    toGraphJSON(json = {}) {
-        return toGraphJSONInternal(this, json);
-    }
-}
-class Ref {
+export class Ref {
     graph;
     path;
     state;
@@ -63,166 +65,101 @@ class Ref {
         this.path = path;
         this.state = state;
     }
-    get value() {
-        return this.getValue();
-    }
-    get node() {
-        return this.getNode();
-    }
-    getValue() {
-        return this.graph.getPathValue(this.path);
-    }
-    getNode() {
-        return this.graph.getPathNode(this.path);
-    }
-    isEmpty() {
-        const node = this.getNode();
-        return node ? node.isEmpty() : true;
-    }
-    toJSON() {
-        return { id: this.path, state: this.state };
-    }
-}
-export class GraphRef {
-    graph;
-    parent;
-    key;
-    static fromPath(graph, path = "") {
-        return path
-            .split(SEPERATOR)
-            .reduce((parent, part) => new GraphRef(graph, parent, part), null);
-    }
-    constructor(graph, parent, key) {
-        this.graph = graph;
-        this.parent = parent;
-        this.key = key;
+    get(key) {
+        return new Ref(this.graph, this.path + SEPERATOR + key, this.state);
     }
     set(value) {
-        this.graph.setAtPath(this.getPath(), value);
-        return this;
-    }
-    get(key) {
-        return new GraphRef(this.graph, this, key);
+        return this.graph.set(this.path, value);
     }
     getValue() {
-        return this.graph.getPathValue(this.getPath());
+        return this.graph.getValueAtPath(this.path);
+    }
+    getPath() {
+        return this.path;
     }
     getNode() {
-        return this.graph.getPathNode(this.getPath());
+        return this.graph.getNodeAtPath(this.path);
+    }
+    getState() {
+        return this.state;
     }
     on(callback) {
-        const onChange = (json) => {
-            const node = this.getNode();
-            if (node) {
-                if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
-                    callback(getPathValue(node.graph, node, node.getPath()));
-                }
+        const onChange = (path) => {
+            if (path.startsWith(this.path)) {
+                callback(this.getValue());
             }
         };
         this.graph.on("change", onChange);
-        const currentValue = this.getValue();
-        if (currentValue) {
-            callback(currentValue);
+        const value = this.getValue();
+        if (value !== undefined) {
+            callback(value);
         }
         return () => {
             this.graph.off("change", onChange);
         };
     }
-    once(callback) {
-        const currentValue = this.getValue();
-        if (currentValue) {
-            callback(currentValue);
-        }
-        else {
-            const onChange = (json) => {
-                const node = this.getNode();
-                if (node) {
-                    if (Object.keys(json).some((key) => key.startsWith(node.getPath()))) {
-                        this.graph.off("change", onChange);
-                        callback(getPathValue(node.graph, node, node.getPath()));
-                    }
-                }
-            };
-            this.graph.on("change", onChange);
-        }
-    }
-    getPath() {
-        if (this.parent) {
-            return this.parent.getPath() + SEPERATOR + this.key;
-        }
-        else {
-            return this.key;
-        }
-    }
-    getChildPath(key) {
-        return this.getPath() + SEPERATOR + key;
+    toJSON() {
+        return {
+            id: this.path,
+            state: this.state,
+        };
     }
 }
 export class Graph extends EventEmitter {
-    entries = new Map();
     state = Date.now();
-    invalidStates = [];
-    invalidStateTimeoutId;
-    lastMaxInvalidState = Infinity;
+    entries = new Map();
     getEntries() {
         return this.entries;
     }
-    get(key) {
-        return new GraphRef(this, null, key);
+    get(path) {
+        return new Ref(this, path, this.state);
     }
-    getPathValue(path, emit = true) {
-        return getPathValue(this, getPathNode(this, path), path, emit);
+    getValueAtPath(path) {
+        const keys = path.split(SEPERATOR), node = this.entries.get(keys.shift());
+        if (node) {
+            return getValueAtPath(keys, node, new Map());
+        }
+        else {
+            this.emit("get", path);
+            return undefined;
+        }
     }
-    getPathNode(path) {
-        return getPathNode(this, path);
+    getNodeAtPath(path) {
+        const keys = path.split(SEPERATOR), node = this.entries.get(keys.shift());
+        return getNodeAtPath(keys, node);
     }
-    setAtPath(path, value) {
+    set(path, value) {
         this.state = Date.now();
-        const node = this.setInternal(path, value, this.state), json = node.toGraphJSON();
-        this.emit("set", json);
-        this.emit("change", json);
+        this.setPathInternal(path, value, this.state);
         return this;
     }
-    merge(json) {
-        const maxState = Date.now(), prevInvalidStates = this.invalidStates.length, merged = {};
-        let maxInvalidState = maxState, wasMerged = false;
-        for (const [key, value] of Object.entries(json)) {
-            if (value.state <= maxState) {
-                this.mergeInternal(key, value);
-                merged[key] = value;
-                wasMerged = true;
-            }
-            else {
-                const index = this.invalidStates.findIndex(([_, j]) => value.state < j.state);
-                maxInvalidState = Math.max(maxInvalidState, value.state);
-                if (index === -1) {
-                    this.invalidStates.push([key, value]);
-                }
-                else {
-                    this.invalidStates.splice(index, 0, [key, value]);
-                }
-            }
-        }
-        if (prevInvalidStates !== this.invalidStates.length) {
-            this.handleInvalidStates(maxState, maxInvalidState);
-        }
-        if (wasMerged) {
-            this.state = maxState;
-            this.emit("change", merged);
-        }
+    merge(path, json) {
+        this.mergePathInternal(path, json);
         return this;
     }
     toJSON() {
-        return Array.from(this.entries.values()).reduce((json, node) => node.toGraphJSON(json), {});
+        return nodeMapToJSON(this.entries, {}, undefined, true);
     }
-    mergeInternal(path, json) {
-        const jsonState = json.state, node = this.getPathNode(path);
-        if (!("value" in json) && !("id" in json)) {
-            if (!node || node instanceof Edge) {
-                if (node) {
-                    this.deleteInternal(path);
+    mergePathInternal(path, json) {
+        const jsonState = json.state;
+        let node = this.getNodeAtPath(path);
+        if ("children" in json) {
+            if (node instanceof Edge) {
+                if ((node.value instanceof Ref &&
+                    node.value.getPath() === path &&
+                    node.value.getState() >= jsonState) ||
+                    shouldOverwrite(node.value, node.state, new Ref(this, path, jsonState), jsonState)) {
+                    node = this.createNodeAt(path, jsonState);
                 }
-                this.getOrCreateNode(path, jsonState);
+            }
+            else if (!node) {
+                node = this.createNodeAt(path, jsonState);
+            }
+            if (node instanceof Node) {
+                for (const [key, child] of Object.entries(json.children)) {
+                    this.mergePathInternal(node.getPath() + SEPERATOR + key, child);
+                }
+                this.emit("change", node.getPath(), node.toJSON());
             }
         }
         else {
@@ -231,105 +168,50 @@ export class Graph extends EventEmitter {
                 if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
                     node.value = jsonValue;
                     node.state = jsonState;
+                    this.emit("change", node.getPath(), node.toJSON());
                 }
             }
             else if (node instanceof Node) {
                 if (shouldOverwrite(new Ref(this, node.getPath(), jsonState), node.state, jsonValue, jsonState)) {
-                    this.deleteInternal(path);
-                    this.getOrCreateEdge(path, jsonState).value = jsonValue;
+                    const newNode = this.createEdgeAt(path, jsonState);
+                    newNode.value = jsonValue;
+                    this.emit("change", newNode.getPath(), newNode.toJSON());
                 }
             }
             else {
-                this.getOrCreateEdge(path, jsonState).value = jsonValue;
+                const newNode = this.createEdgeAt(path, jsonState);
+                newNode.value = jsonValue;
+                this.emit("change", newNode.getPath(), newNode.toJSON());
             }
         }
+        return this;
     }
-    handleInvalidStates(maxState, maxInvalidState) {
-        if (maxInvalidState < this.lastMaxInvalidState) {
-            this.lastMaxInvalidState = maxInvalidState;
-            clearTimeout(this.invalidStateTimeoutId);
-            this.invalidStateTimeoutId = undefined;
+    setPathInternal(path, value, state) {
+        if (value instanceof Ref) {
+            this.setEdgePathInternal(path, value, state);
         }
-        if (this.invalidStateTimeoutId) {
-            return;
-        }
-        this.invalidStateTimeoutId = setTimeout(() => {
-            const newMaxState = Date.now(), invalidStates = this.invalidStates, graphJSON = {};
-            this.invalidStateTimeoutId = undefined;
-            let index = -1;
-            for (let i = invalidStates.length - 1; i >= 0; i--) {
-                const [path, json] = invalidStates[i];
-                if (json.state <= newMaxState) {
-                    this.mergeInternal(path, json);
-                    graphJSON[path] = json;
-                    index = i;
-                }
-            }
-            if (index !== -1) {
-                invalidStates.splice(index, invalidStates.length - index);
-                this.state = newMaxState;
-                this.emit("change", graphJSON);
-            }
-            if (invalidStates.length) {
-                this.handleInvalidStates(newMaxState, invalidStates[0][1].state);
-            }
-        }, maxInvalidState - maxState);
-    }
-    deleteInternal(path) {
-        const node = this.getPathNode(path);
-        if (node instanceof Node) {
-            for (const key of node.children.keys()) {
-                this.deleteInternal(node.getChildPath(key));
-            }
-        }
-        if (node) {
-            this.entries.delete(node.getPath());
-        }
-    }
-    setInternal(path, value, state) {
-        let node = this.getPathNode(path);
-        if (value != null && typeof value === "object") {
-            if (value instanceof GraphRef) {
-                if (node instanceof Node || !node) {
-                    if (node) {
-                        this.deleteInternal(node.getPath());
-                    }
-                    node = this.getOrCreateEdge(path, state);
-                }
-                node.value = new Ref(this, value.getPath(), state);
-                node.state = state;
-                return node;
-            }
-            else {
-                if (node instanceof Edge || !node) {
-                    if (node) {
-                        this.deleteInternal(node.getPath());
-                    }
-                    node = this.getOrCreateNode(path, state);
-                }
-                for (const [k, v] of Object.entries(value)) {
-                    node.children.set(k, this.setInternal(node.getChildPath(k), v, state));
-                }
-                return node;
+        else if (value != null && typeof value === "object") {
+            for (const [k, v] of Object.entries(value)) {
+                this.setPathInternal(path + SEPERATOR + k, v, state);
             }
         }
         else {
-            if (node instanceof Node || !node) {
-                if (node) {
-                    this.deleteInternal(node.getPath());
-                }
-                node = this.getOrCreateEdge(path, state);
-            }
-            node.value = value;
-            node.state = state;
-            return node;
+            this.setEdgePathInternal(path, value, state);
         }
     }
-    getOrCreateNode(path, state) {
+    setEdgePathInternal(path, value, state) {
+        const edge = this.createEdgeAt(path, state);
+        edge.value = value;
+        const edgePath = edge.getPath(), edgeJSON = edge.toJSON();
+        this.emit("change", edgePath, edgeJSON);
+        this.emit("set", edgePath, edgeJSON);
+        return edge;
+    }
+    createNodeAt(path, state) {
         const keys = path.split(SEPERATOR), key = keys.shift();
         let parent = this.entries.get(key);
         if (!(parent instanceof Node)) {
-            parent = new Node(this, null, key, this.state);
+            parent = new Node(this, null, key, state);
             this.entries.set(key, parent);
         }
         return keys.reduce((parent, key) => {
@@ -347,20 +229,19 @@ export class Graph extends EventEmitter {
             }
             const newNode = new Node(this, parent, key, state);
             parent.children.set(key, newNode);
-            this.entries.set(newNode.getPath(), newNode);
             return newNode;
         }, parent);
     }
-    getOrCreateEdge(path, state) {
-        const [parentPath, key] = getParentPathAndKey(path), parent = parentPath ? this.getOrCreateNode(parentPath, state) : null;
+    createEdgeAt(path, state) {
+        const [parentPath, key] = getParentPathAndKey(path), parent = parentPath ? this.createNodeAt(parentPath, state) : null;
         let node = parent?.children.get(key);
         if (node instanceof Edge) {
+            node.state = state;
             return node;
         }
         else {
-            node = new Edge(this, parent, key, null, state);
+            node = new Edge(this, parent, key, state, null);
             parent?.children.set(key, node);
-            this.entries.set(path, node);
             return node;
         }
     }
@@ -383,10 +264,7 @@ export function getParentPathAndKey(path) {
         return [path.substring(0, index), path.substring(index + 1)];
     }
 }
-export function getNodeValue(node) {
-    return getNodeValueInternal(node, new Map());
-}
-function getNodeValueInternal(node, values) {
+function getValueAtPath(keys, node, values) {
     if (!node) {
         return undefined;
     }
@@ -394,83 +272,114 @@ function getNodeValueInternal(node, values) {
     if (seen) {
         return seen;
     }
-    if (node instanceof Edge) {
-        if (node.value instanceof Ref) {
-            const value = getNodeValueInternal(node.value.getNode(), values) || null;
-            values.set(node, value);
-            return value;
+    if (node instanceof Node) {
+        const key = keys.shift();
+        if (key) {
+            const child = node.children.get(key);
+            if (child) {
+                return getValueAtPath(keys, child, values);
+            }
+            else {
+                node.graph.emit("get", node.getPath() + SEPERATOR + key);
+                values.set(node, undefined);
+                return undefined;
+            }
         }
         else {
-            const value = node.value;
-            values.set(node, value);
-            return value;
-        }
-    }
-    else if (node instanceof Node) {
-        const children = {};
-        values.set(node, children);
-        for (const key of node.children.keys()) {
-            children[key] =
-                getNodeValueInternal(node.children.get(key), values) || null;
-        }
-        return children;
-    }
-    values.set(node, undefined);
-    return undefined;
-}
-export function toGraphJSON(node) {
-    return toGraphJSONInternal(node, {});
-}
-function toGraphJSONInternal(node, json) {
-    json[node.getPath()] = node.toJSON();
-    if (node instanceof Node) {
-        for (const child of node.children.values()) {
-            toGraphJSONInternal(child, json);
-        }
-    }
-    return json;
-}
-function getPathValue(graph, node, path, emit = true) {
-    let value;
-    if (node) {
-        value = getNodeValue(node);
-        path = node.getPath();
-    }
-    if (value === undefined && emit) {
-        graph.emit("get", path);
-    }
-    return value;
-}
-function getPathNode(graph, path) {
-    const keys = path.split(SEPERATOR), key = keys.shift(), node = graph.getEntries().get(key);
-    if (node) {
-        return followNodePath(keys, node);
-    }
-    else {
-        return undefined;
-    }
-}
-function followNodePath(keys, node) {
-    if (keys.length === 0) {
-        return node;
-    }
-    else if (node instanceof Node) {
-        const key = keys.shift(), child = node.children.get(key);
-        if (child) {
-            return followNodePath(keys, child);
+            const children = {};
+            values.set(node, children);
+            for (const [k, c] of node.children) {
+                const childPath = node.getPath() + SEPERATOR + k;
+                if (c instanceof Edge &&
+                    c.value instanceof Ref &&
+                    c.getPath() === childPath) {
+                    children[k] = new Ref(node.graph, childPath, c.state);
+                }
+                else {
+                    const value = getValueAtPath(keys, c, values);
+                    if (value !== undefined) {
+                        children[k] = value;
+                    }
+                    else {
+                        children[k] = new Ref(node.graph, childPath, c.state);
+                    }
+                }
+            }
+            return children;
         }
     }
     else if (node.value instanceof Ref) {
+        if (node.getPath() === node.value.getPath()) {
+            node.graph.emit("get", node.value.getPath());
+            values.set(node, undefined);
+            return undefined;
+        }
         const refNode = node.value.getNode();
         if (refNode) {
-            return followNodePath(keys, refNode);
+            return getValueAtPath(keys, refNode, values);
+        }
+        else {
+            node.graph.emit("get", node.value.getPath());
+            values.set(node, undefined);
+            return undefined;
         }
     }
-    return undefined;
+    values.set(node, node.value);
+    return node.value;
+}
+function getNodeAtPath(keys, node) {
+    if (!node) {
+        return undefined;
+    }
+    else if (node instanceof Node) {
+        const key = keys.shift();
+        if (key) {
+            const child = node.children.get(key);
+            if (child) {
+                return getNodeAtPath(keys, child);
+            }
+            else {
+                return undefined;
+            }
+        }
+        else {
+            return node;
+        }
+    }
+    else if (node.value instanceof Ref) {
+        if (node.getPath() === node.value.getPath()) {
+            return node;
+        }
+        const refNode = node.value.getNode();
+        if (refNode) {
+            return getNodeAtPath(keys, refNode);
+        }
+        else {
+            return undefined;
+        }
+    }
+    return node;
 }
 function shouldOverwrite(localValue, localState, remoteValue, remoteState) {
     return (remoteState >= localState &&
         (localState === remoteState
             ? JSON.stringify(remoteValue) > JSON.stringify(localValue)
             : true));
+}
+function nodeMapToJSON(entries, json, path, recur = false) {
+    const prefix = path ? path + SEPERATOR : "";
+    entries.forEach((child, key) => {
+        if (child instanceof Node) {
+            if (recur) {
+                nodeMapToJSON(child.children, json, prefix + key, recur);
+            }
+            else {
+                json[prefix + key] = child.toJSON();
+            }
+        }
+        else {
+            json[prefix + key] = child.toJSON();
+        }
+    });
+    return json;
 }

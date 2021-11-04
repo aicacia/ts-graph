@@ -1,7 +1,7 @@
 import SimplePeer from "simple-peer";
 import { Mesh, Peer } from "@aicacia/mesh";
 import { Graph } from "../src";
-import { IGraphJSON } from "../src/Graph";
+import { IRefJSON, IEdgeJSON, INodeJSON } from "../src/Graph";
 
 declare global {
   interface Window {
@@ -13,11 +13,10 @@ declare global {
 
 type IMessage =
   | {
-      type: "set";
-      json: IGraphJSON;
+      path: string;
+      json: IRefJSON | IEdgeJSON | INodeJSON;
     }
   | {
-      type: "get";
       path: string;
     };
 
@@ -33,36 +32,36 @@ async function onLoad() {
   window.graph = graph;
 
   graph
-    .on("set", (json) => {
-      console.log("request set", json);
+    .on("set", (path, json) => {
       mesh.broadcast({
-        type: "set",
+        path,
         json,
       });
     })
+    .on("change", () => {
+      document.getElementById("json").innerHTML = JSON.stringify(
+        graph,
+        null,
+        2
+      );
+    })
     .on("get", (path) => {
-      console.log("request get", path);
       mesh.broadcast({
-        type: "get",
         path,
       });
     });
 
   mesh.on("data", (data: IMessage) => {
-    console.log(data);
-    if (data.type === "set") {
-      console.log("reveived set", data.json);
-      graph.merge(data.json);
-    } else if (data.type === "get") {
-      console.log("reveived get", data.path);
-      const node = graph.getPathNode(data.path);
-
-      console.log(node);
+    if ("json" in data) {
+      graph.merge(data.path, data.json);
+    } else {
+      const node = graph.getNodeAtPath(data.path);
 
       if (node) {
         mesh.broadcast({
           type: "set",
-          json: node.toGraphJSON(),
+          path: data.path,
+          json: node.toJSON(),
         });
       }
     }
@@ -74,12 +73,8 @@ async function onLoad() {
     .get("rooms")
     .get("r1")
     .get("users")
-    .on((users: any) => {
-      document.getElementById("json").innerText = JSON.stringify(
-        users,
-        null,
-        2
-      );
+    .on((users) => {
+      console.log(users);
     });
 
   /*
