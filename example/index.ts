@@ -33,25 +33,25 @@ async function onLoad() {
 
   graph
     .on("set", (path, json) => {
+      console.log("sending set", path, json);
       mesh.broadcast({
         path,
         json,
       });
     })
-    .on("change", () => {
-      document.getElementById("json").innerHTML = JSON.stringify(
-        graph,
-        null,
-        2
-      );
+    .on("change", (path, json) => {
+      console.log("sending change", path, json);
     })
     .on("get", (path) => {
+      console.log("sending get", path);
       mesh.broadcast({
         path,
       });
     });
 
   mesh.on("data", (data: IMessage) => {
+    console.log("receiving", data);
+
     if ("json" in data) {
       graph.merge(data.path, data.json);
     } else {
@@ -73,28 +73,23 @@ async function onLoad() {
     .get("rooms")
     .get("r1")
     .get("users")
-    .on((users) => {
-      console.log(users);
+    .on(() => {
+      document.getElementById("json").innerHTML = JSON.stringify(
+        graph,
+        null,
+        2
+      );
     });
 
-  await graph
-    .get("rooms")
-    .get("r1")
-    .get("users")
-    .then((users) => {
-      console.log(users);
-    });
-
-  /*
-  graph.get("rooms").get('r1').set({
-    users: {
-      u1: {
-        name: 'Nathan'
-      }
-    }
+  document.getElementById("name").addEventListener("input", (e) => {
+    graph
+      .get("rooms")
+      .get("r1")
+      .get("users")
+      .get(peer.getId())
+      .get("name")
+      .set((e.currentTarget as HTMLInputElement).value);
   });
-  graph.get('rooms').get('r1').get('users').get('u2').set({name: "Billy"})
-  */
 }
 
 window.addEventListener("load", onLoad);

@@ -66,11 +66,12 @@ class Ref {
         this.path = path;
         this.state = state;
     }
-    get(key) {
-        return new Ref(this.graph, this.path + exports.SEPERATOR + key, this.state);
+    get(path) {
+        return new Ref(this.graph, this.path + exports.SEPERATOR + path, this.state);
     }
     set(value) {
-        return this.graph.set(this.path, value);
+        this.graph.set(this.path, value);
+        return this;
     }
     getValue() {
         return this.graph.getValueAtPath(this.path);

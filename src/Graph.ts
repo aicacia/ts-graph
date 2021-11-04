@@ -112,11 +112,12 @@ export class Ref implements PromiseLike<IGetValue | undefined> {
     this.state = state;
   }
 
-  get(key: string) {
-    return new Ref(this.graph, this.path + SEPERATOR + key, this.state);
+  get(path: string) {
+    return new Ref(this.graph, this.path + SEPERATOR + path, this.state);
   }
   set(value: ISetValue) {
-    return this.graph.set(this.path, value);
+    this.graph.set(this.path, value);
+    return this;
   }
   getValue() {
     return this.graph.getValueAtPath(this.path);

@@ -49,8 +49,8 @@ export declare class Ref implements PromiseLike<IGetValue | undefined> {
     protected path: string;
     protected state: number;
     constructor(graph: Graph, path: string, state: number);
-    get(key: string): Ref;
-    set(value: ISetValue): Graph;
+    get(path: string): Ref;
+    set(value: ISetValue): this;
     getValue(): IGetValue | undefined;
     getPath(): string;
     getNode(): Node | Edge | undefined;
