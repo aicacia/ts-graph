@@ -56,6 +56,10 @@ export interface INodeJSON extends IEntryJSON {
 export class Node extends Entry {
   children: Map<string, Edge | Node> = new Map();
 
+  getValue() {
+    return getValueAtPath([], this, new Map());
+  }
+
   toNodesJSON() {
     return nodeMapToJSON(this.children, {}, this.getPath(), false);
   }
@@ -93,6 +97,10 @@ export class Edge extends Entry {
     super(graph, parent, key, state);
     this.state = state;
     this.value = value;
+  }
+
+  getValue() {
+    return getValueAtPath([], this, new Map());
   }
 
   toJSON(): IEdgeJSON | IRefJSON {
@@ -144,13 +152,15 @@ export class Ref<T extends IGraphNode = IGraphNode>
   }
 
   on(callback: (value: IReturn<T> | undefined) => void) {
+    const node = this.getNode();
     const onChange = (path: string) => {
-      if (path.startsWith(this.path)) {
+      if (path.startsWith(node?.getPath() || this.path)) {
         callback(this.getValue());
       }
     };
+    this.graph.listenTo(node ? node.getPath() : this.path);
     this.graph.on("change", onChange);
-    const value = this.getValue();
+    const value = getValueAtPath([], node, new Map()) as IReturn<T> | undefined;
     if (value !== undefined) {
       callback(value);
     }
@@ -166,7 +176,8 @@ export class Ref<T extends IGraphNode = IGraphNode>
       | null,
     onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null
   ): PromiseLike<R | E> {
-    const value = this.getValue();
+    const node = this.getNode(),
+      value = getValueAtPath([], node, new Map()) as IReturn<T> | undefined;
     let promise: PromiseLike<IReturn<T> | undefined>;
 
     if (value !== undefined) {
@@ -176,6 +187,7 @@ export class Ref<T extends IGraphNode = IGraphNode>
         promise = Promise.resolve<IReturn<T>>(value);
       }
     } else {
+      this.graph.listenTo(node ? node.getPath() : this.path);
       promise = new Promise((resolve) => {
         const onChange = (path: string) => {
           if (path.startsWith(this.path)) {

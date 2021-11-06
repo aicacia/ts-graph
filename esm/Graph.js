@@ -24,6 +24,9 @@ export class Entry {
 }
 export class Node extends Entry {
     children = new Map();
+    getValue() {
+        return getValueAtPath([], this, new Map());
+    }
     toNodesJSON() {
         return nodeMapToJSON(this.children, {}, this.getPath(), false);
     }
@@ -49,6 +52,9 @@ export class Edge extends Entry {
         super(graph, parent, key, state);
         this.state = state;
         this.value = value;
+    }
+    getValue() {
+        return getValueAtPath([], this, new Map());
     }
     toJSON() {
         return this.value instanceof Ref
@@ -85,13 +91,15 @@ export class Ref {
         return this.state;
     }
     on(callback) {
+        const node = this.getNode();
         const onChange = (path) => {
-            if (path.startsWith(this.path)) {
+            if (path.startsWith(node?.getPath() || this.path)) {
                 callback(this.getValue());
             }
         };
+        this.graph.listenTo(node ? node.getPath() : this.path);
         this.graph.on("change", onChange);
-        const value = this.getValue();
+        const value = getValueAtPath([], node, new Map());
         if (value !== undefined) {
             callback(value);
         }
@@ -100,7 +108,7 @@ export class Ref {
         };
     }
     then(onfulfilled, onrejected) {
-        const value = this.getValue();
+        const node = this.getNode(), value = getValueAtPath([], node, new Map());
         let promise;
         if (value !== undefined) {
             if (value instanceof Ref) {
@@ -111,6 +119,7 @@ export class Ref {
             }
         }
         else {
+            this.graph.listenTo(node ? node.getPath() : this.path);
             promise = new Promise((resolve) => {
                 const onChange = (path) => {
                     if (path.startsWith(this.path)) {

@@ -30,6 +30,7 @@ export interface INodeJSON extends IEntryJSON {
 }
 export declare class Node extends Entry {
     children: Map<string, Edge | Node>;
+    getValue(): IGraphNode | undefined;
     toNodesJSON(): {
         [key: string]: INodeJSON | IEdgeJSON | IRefJSON;
         [key: number]: INodeJSON | IEdgeJSON | IRefJSON;
@@ -43,6 +44,7 @@ export interface IEdgeJSON extends IEntryJSON {
 export declare class Edge extends Entry {
     value: IPrimitive | Ref;
     constructor(graph: Graph, parent: Entry | null, key: string, state: number, value: IPrimitive);
+    getValue(): IGraphNode | undefined;
     toJSON(): IEdgeJSON | IRefJSON;
 }
 export interface IRefJSON extends IEntryJSON {
