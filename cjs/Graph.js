@@ -109,8 +109,7 @@ class Ref {
         };
     }
     then(onfulfilled, onrejected) {
-        const node = this.getNode();
-        const value = getValueAtPath([], node, new Map());
+        const node = this.getNode(), value = getValueAtPath([], node, new Map());
         let promise;
         if (value !== undefined) {
             if (value instanceof Ref) {
