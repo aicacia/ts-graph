@@ -295,7 +295,12 @@ class Graph extends eventemitter3_1.EventEmitter {
         }
         else {
             node = new Edge(this, parent, key, state, null);
-            parent === null || parent === void 0 ? void 0 : parent.children.set(key, node);
+            if (parent) {
+                parent === null || parent === void 0 ? void 0 : parent.children.set(key, node);
+            }
+            else {
+                this.entries.set(key, node);
+            }
             return node;
         }
     }

@@ -416,7 +416,11 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
       return node;
     } else {
       node = new Edge(this, parent, key, state, null);
-      parent?.children.set(key, node);
+      if (parent) {
+        parent?.children.set(key, node);
+      } else {
+        this.entries.set(key, node);
+      }
       return node;
     }
   }

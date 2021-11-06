@@ -290,7 +290,12 @@ export class Graph extends EventEmitter {
         }
         else {
             node = new Edge(this, parent, key, state, null);
-            parent?.children.set(key, node);
+            if (parent) {
+                parent?.children.set(key, node);
+            }
+            else {
+                this.entries.set(key, node);
+            }
             return node;
         }
     }

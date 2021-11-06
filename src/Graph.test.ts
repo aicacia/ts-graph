@@ -18,6 +18,7 @@ tape("Graph", (assert: tape.Test) => {
   const graph = new Graph<{
     nathan: INathan;
     billy: IBilly;
+    ready: boolean;
   }>();
 
   graph.get("nathan").set({
@@ -51,6 +52,9 @@ tape("Graph", (assert: tape.Test) => {
       .getValue(),
     "Nathan"
   );
+
+  graph.get("ready").set(true);
+  assert.equal(graph.get("ready").getValue(), true);
 
   assert.end();
 });
