@@ -74,7 +74,7 @@ export class Node extends Entry {
       }
     }
     return {
-      state: this.state,
+      ...super.toJSON(),
       children,
     };
   }
@@ -106,7 +106,10 @@ export class Edge extends Entry {
   toJSON(): IEdgeJSON | IRefJSON {
     return this.value instanceof Ref
       ? this.value.toJSON()
-      : { state: this.state, value: this.value };
+      : {
+          ...super.toJSON(),
+          value: this.value,
+        };
   }
 }
 

@@ -43,10 +43,7 @@ class Node extends Entry {
                 children[key] = child.toJSON();
             }
         }
-        return {
-            state: this.state,
-            children,
-        };
+        return Object.assign(Object.assign({}, super.toJSON()), { children });
     }
 }
 exports.Node = Node;
@@ -62,7 +59,7 @@ class Edge extends Entry {
     toJSON() {
         return this.value instanceof Ref
             ? this.value.toJSON()
-            : { state: this.state, value: this.value };
+            : Object.assign(Object.assign({}, super.toJSON()), { value: this.value });
     }
 }
 exports.Edge = Edge;
