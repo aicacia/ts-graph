@@ -66,8 +66,8 @@ class Ref {
         this.path = path;
         this.state = state;
     }
-    get(path) {
-        return new Ref(this.graph, this.path + exports.SEPERATOR + path, this.state);
+    get(key) {
+        return new Ref(this.graph, this.path + exports.SEPERATOR + key, this.state);
     }
     set(value) {
         this.graph.set(this.path, value);
@@ -104,7 +104,12 @@ class Ref {
         const value = this.getValue();
         let promise;
         if (value !== undefined) {
-            promise = Promise.resolve(value);
+            if (value instanceof Ref) {
+                promise = value.then();
+            }
+            else {
+                promise = Promise.resolve(value);
+            }
         }
         else {
             promise = new Promise((resolve) => {
@@ -136,8 +141,8 @@ class Graph extends eventemitter3_1.EventEmitter {
     getEntries() {
         return this.entries;
     }
-    get(path) {
-        return new Ref(this, path, this.state);
+    get(key) {
+        return new Ref(this, key, this.state);
     }
     getValueAtPath(path) {
         const keys = path.split(exports.SEPERATOR), node = this.entries.get(keys.shift());

@@ -1,7 +1,7 @@
 import SimplePeer from "simple-peer";
 import { Mesh, Peer } from "@aicacia/mesh";
-import { Graph } from "../src";
-import { IRefJSON, IEdgeJSON, INodeJSON } from "../src/Graph";
+import { Graph, Ref } from "../src";
+import type { IRefJSON, IEdgeJSON, INodeJSON } from "../src/Graph";
 
 declare global {
   interface Window {
@@ -20,38 +20,47 @@ type IMessage =
       path: string;
     };
 
+type IUser = {
+  name: string;
+};
+
+type IState = {
+  rooms: {
+    [roomId: string]: {
+      users: {
+        [userId: string]: IUser;
+      };
+    };
+  };
+  user: Ref<IUser>;
+};
+
 async function onLoad() {
   const peer = new Peer(SimplePeer, {
       namespace: "example-graph",
     }),
     mesh = new Mesh(peer),
-    graph = new Graph();
+    graph = new Graph<IState>();
 
-  window.graph = graph;
-  window.graph = graph;
   window.graph = graph;
 
   graph
     .on("set", (path, json) => {
-      console.log("sending set", path, json);
       mesh.broadcast({
         path,
         json,
       });
     })
-    .on("change", (path, json) => {
-      console.log("sending change", path, json);
+    .on("change", (_path, _json) => {
+      // changed
     })
     .on("get", (path) => {
-      console.log("sending get", path);
       mesh.broadcast({
         path,
       });
     });
 
   mesh.on("data", (data: IMessage) => {
-    console.log("receiving", data);
-
     if ("json" in data) {
       graph.merge(data.path, data.json);
     } else {
@@ -59,7 +68,6 @@ async function onLoad() {
 
       if (node) {
         mesh.broadcast({
-          type: "set",
           path: data.path,
           json: node.toJSON(),
         });
@@ -70,22 +78,21 @@ async function onLoad() {
   await peer.connected();
 
   graph
-    .get("rooms")
-    .get("r1")
-    .get("users")
-    .on(() => {
-      document.getElementById("json").innerHTML = JSON.stringify(
-        graph,
-        null,
-        2
-      );
-    });
+    .get("user")
+    .set(graph.get("rooms").get("r1").get("users").get(peer.getId()));
 
-  document.getElementById("name").addEventListener("input", (e) => {
-    graph
-      .get("rooms")
-      .get("r1")
-      .get("users")
+  const users = graph.get("rooms").get("r1").get("users");
+
+  users.on((_users) => {
+    document.getElementById("json").innerHTML = JSON.stringify(graph, null, 2);
+  });
+
+  graph.get("user").on((user) => {
+    document.getElementById("name").innerHTML = user?.name;
+  });
+
+  document.getElementById("name-input").addEventListener("input", (e) => {
+    users
       .get(peer.getId())
       .get("name")
       .set((e.currentTarget as HTMLInputElement).value);

@@ -1,7 +1,9 @@
 export type {
   IPrimitive,
-  IGetValue,
-  ISetValue,
+  IGraph,
+  IGraphNode,
+  IReturn,
+  IEntryJSON,
   IEdgeJSON,
   IGraphEvents,
   IRefJSON,

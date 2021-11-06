@@ -1,8 +1,24 @@
 import tape from "tape";
-import { Graph } from "./Graph";
+import { Graph, Ref } from "./Graph";
+
+type IBilly = {
+  name: string;
+  parent: Ref<INathan>;
+  parentName: Ref<string>;
+};
+
+type INathan = {
+  name: string;
+  children: {
+    billy: Ref<IBilly>;
+  };
+};
 
 tape("Graph", (assert: tape.Test) => {
-  const graph = new Graph();
+  const graph = new Graph<{
+    nathan: INathan;
+    billy: IBilly;
+  }>();
 
   graph.get("nathan").set({
     name: "Nathan",
@@ -10,7 +26,7 @@ tape("Graph", (assert: tape.Test) => {
       billy: graph.get("billy").set({
         name: "Billy",
         parent: graph.get("nathan"),
-        parentName: graph.get("nathan").get("name"),
+        parentName: graph.get("nathan").get("name") as Ref<string>,
       }),
     },
   });

@@ -1,14 +1,19 @@
 import { EventEmitter } from "eventemitter3";
 
+export type IKeyOf<T> = Exclude<keyof T, symbol | number>;
+
 export type IPrimitive = string | number | boolean | null;
-export type ISetValue =
-  | Ref
-  | IPrimitive
-  | { [key: string | symbol | number]: ISetValue };
-export type IGetValue =
-  | IPrimitive
-  | Ref
-  | { [key: string | symbol | number]: IGetValue };
+
+export type IGraph = { [S in string]: IGraphNode } & {
+  [S in number]: IGraphNode;
+};
+export type IGraphNode = IPrimitive | Ref | IGraph;
+
+export type IReturn<T extends IGraphNode> = T extends IGraph
+  ? { [K in IKeyOf<T>]: IReturn<T[K]> }
+  : T extends Ref<infer V>
+  ? V
+  : T;
 
 export const SEPERATOR = "/";
 
@@ -101,7 +106,9 @@ export interface IRefJSON extends IEntryJSON {
   id: string;
 }
 
-export class Ref implements PromiseLike<IGetValue | undefined> {
+export class Ref<T extends IGraphNode = IGraphNode>
+  implements PromiseLike<IReturn<T> | undefined>
+{
   protected graph: Graph;
   protected path: string;
   protected state: number;
@@ -112,15 +119,19 @@ export class Ref implements PromiseLike<IGetValue | undefined> {
     this.state = state;
   }
 
-  get(path: string) {
-    return new Ref(this.graph, this.path + SEPERATOR + path, this.state);
+  get<SK extends IKeyOf<T> = IKeyOf<T>>(
+    key: SK
+  ): Ref<
+    T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IPrimitive
+  > {
+    return new Ref(this.graph, this.path + SEPERATOR + key, this.state);
   }
-  set(value: ISetValue) {
+  set(value: T | Ref<T>) {
     this.graph.set(this.path, value);
     return this;
   }
-  getValue() {
-    return this.graph.getValueAtPath(this.path);
+  getValue(): IReturn<T> | undefined {
+    return this.graph.getValueAtPath(this.path) as IReturn<T>;
   }
   getPath() {
     return this.path;
@@ -132,7 +143,7 @@ export class Ref implements PromiseLike<IGetValue | undefined> {
     return this.state;
   }
 
-  on(callback: (value: IGetValue | undefined) => void) {
+  on(callback: (value: IReturn<T> | undefined) => void) {
     const onChange = (path: string) => {
       if (path.startsWith(this.path)) {
         callback(this.getValue());
@@ -148,18 +159,22 @@ export class Ref implements PromiseLike<IGetValue | undefined> {
     };
   }
 
-  then<T = IGetValue | undefined, E = never>(
+  then<R = IReturn<T> | undefined, E = never>(
     onfulfilled?:
-      | ((value: IGetValue | undefined) => T | PromiseLike<T>)
+      | ((value: IReturn<T> | undefined) => R | PromiseLike<R>)
       | undefined
       | null,
     onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null
-  ): PromiseLike<T | E> {
+  ): PromiseLike<R | E> {
     const value = this.getValue();
-    let promise: PromiseLike<IGetValue | undefined>;
+    let promise: PromiseLike<IReturn<T> | undefined>;
 
     if (value !== undefined) {
-      promise = Promise.resolve(value);
+      if (value instanceof Ref) {
+        promise = value.then();
+      } else {
+        promise = Promise.resolve<IReturn<T>>(value);
+      }
     } else {
       promise = new Promise((resolve) => {
         const onChange = (path: string) => {
@@ -181,17 +196,19 @@ export class Ref implements PromiseLike<IGetValue | undefined> {
   }
 }
 
-export interface IGraphEvents {
-  get(this: Graph, path: string): void;
-  set(this: Graph, path: string, value: IRefJSON | IEdgeJSON): void;
+export interface IGraphEvents<T extends IGraph> {
+  get(this: Graph<T>, path: string): void;
+  set(this: Graph<T>, path: string, value: IRefJSON | IEdgeJSON): void;
   change(
-    this: Graph,
+    this: Graph<T>,
     path: string,
     value: IRefJSON | IEdgeJSON | INodeJSON
   ): void;
 }
 
-export class Graph extends EventEmitter<IGraphEvents> {
+export class Graph<T extends IGraph = IGraph> extends EventEmitter<
+  IGraphEvents<T>
+> {
   protected listening: Set<string> = new Set();
   protected state = Date.now();
   protected entries: Map<string, Node | Edge> = new Map();
@@ -200,8 +217,8 @@ export class Graph extends EventEmitter<IGraphEvents> {
     return this.entries;
   }
 
-  get(path: string): Ref {
-    return new Ref(this, path, this.state);
+  get<K extends IKeyOf<T> = IKeyOf<T>>(key: K): Ref<T[K]> {
+    return new Ref(this, key, this.state);
   }
 
   getValueAtPath(path: string) {
@@ -223,7 +240,7 @@ export class Graph extends EventEmitter<IGraphEvents> {
     return getNodeAtPath(keys, node);
   }
 
-  set(path: string, value: ISetValue) {
+  set(path: string, value: IGraphNode) {
     this.state = Date.now();
     this.setPathInternal(path, value, this.state);
     return this;
@@ -319,7 +336,7 @@ export class Graph extends EventEmitter<IGraphEvents> {
     return this;
   }
 
-  private setPathInternal(path: string, value: ISetValue, state: number) {
+  private setPathInternal(path: string, value: IGraphNode, state: number) {
     if (value instanceof Ref) {
       this.setEdgePathInternal(path, value, state);
     } else if (value != null && typeof value === "object") {
@@ -417,8 +434,8 @@ export function getParentPathAndKey(
 function getValueAtPath(
   keys: string[],
   node: Node | Edge | undefined,
-  values: Map<Node | Edge, IGetValue | undefined>
-): IGetValue | undefined {
+  values: Map<Node | Edge, IGraphNode | undefined>
+): IGraphNode | undefined {
   if (!node) {
     return undefined;
   }
@@ -441,7 +458,7 @@ function getValueAtPath(
       }
     } else {
       const children: {
-        [key: string | symbol | number]: IGetValue;
+        [key: string]: IGraphNode;
       } = {};
       values.set(node, children);
       for (const [k, c] of node.children) {

@@ -1,11 +1,15 @@
 import { EventEmitter } from "eventemitter3";
+export declare type IKeyOf<T> = Exclude<keyof T, symbol | number>;
 export declare type IPrimitive = string | number | boolean | null;
-export declare type ISetValue = Ref | IPrimitive | {
-    [key: string | symbol | number]: ISetValue;
+export declare type IGraph = {
+    [S in string]: IGraphNode;
+} & {
+    [S in number]: IGraphNode;
 };
-export declare type IGetValue = IPrimitive | Ref | {
-    [key: string | symbol | number]: IGetValue;
-};
+export declare type IGraphNode = IPrimitive | Ref | IGraph;
+export declare type IReturn<T extends IGraphNode> = T extends IGraph ? {
+    [K in IKeyOf<T>]: IReturn<T[K]>;
+} : T extends Ref<infer V> ? V : T;
 export declare const SEPERATOR = "/";
 export interface IEntryJSON {
     state: number;
@@ -44,35 +48,35 @@ export declare class Edge extends Entry {
 export interface IRefJSON extends IEntryJSON {
     id: string;
 }
-export declare class Ref implements PromiseLike<IGetValue | undefined> {
+export declare class Ref<T extends IGraphNode = IGraphNode> implements PromiseLike<IReturn<T> | undefined> {
     protected graph: Graph;
     protected path: string;
     protected state: number;
     constructor(graph: Graph, path: string, state: number);
-    get(path: string): Ref;
-    set(value: ISetValue): this;
-    getValue(): IGetValue | undefined;
+    get<SK extends IKeyOf<T> = IKeyOf<T>>(key: SK): Ref<T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IPrimitive>;
+    set(value: T | Ref<T>): this;
+    getValue(): IReturn<T> | undefined;
     getPath(): string;
     getNode(): Node | Edge | undefined;
     getState(): number;
-    on(callback: (value: IGetValue | undefined) => void): () => void;
-    then<T = IGetValue | undefined, E = never>(onfulfilled?: ((value: IGetValue | undefined) => T | PromiseLike<T>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<T | E>;
+    on(callback: (value: IReturn<T> | undefined) => void): () => void;
+    then<R = IReturn<T> | undefined, E = never>(onfulfilled?: ((value: IReturn<T> | undefined) => R | PromiseLike<R>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<R | E>;
     toJSON(): IRefJSON;
 }
-export interface IGraphEvents {
-    get(this: Graph, path: string): void;
-    set(this: Graph, path: string, value: IRefJSON | IEdgeJSON): void;
-    change(this: Graph, path: string, value: IRefJSON | IEdgeJSON | INodeJSON): void;
+export interface IGraphEvents<T extends IGraph> {
+    get(this: Graph<T>, path: string): void;
+    set(this: Graph<T>, path: string, value: IRefJSON | IEdgeJSON): void;
+    change(this: Graph<T>, path: string, value: IRefJSON | IEdgeJSON | INodeJSON): void;
 }
-export declare class Graph extends EventEmitter<IGraphEvents> {
+export declare class Graph<T extends IGraph = IGraph> extends EventEmitter<IGraphEvents<T>> {
     protected listening: Set<string>;
     protected state: number;
     protected entries: Map<string, Node | Edge>;
     getEntries(): ReadonlyMap<string, Node | Edge>;
-    get(path: string): Ref;
-    getValueAtPath(path: string): IGetValue | undefined;
+    get<K extends IKeyOf<T> = IKeyOf<T>>(key: K): Ref<T[K]>;
+    getValueAtPath(path: string): IGraphNode | undefined;
     getNodeAtPath(path: string): Node | Edge | undefined;
-    set(path: string, value: ISetValue): this;
+    set(path: string, value: IGraphNode): this;
     merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON): this;
     listenTo(path: string): this;
     isListeningTo(path: string): boolean;
