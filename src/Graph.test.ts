@@ -75,39 +75,6 @@ tape("Graph get missing", (assert: tape.Test) => {
   assert.end();
 });
 
-tape("Graph merge", (assert: tape.Test) => {
-  const graph = new Graph<any>();
-
-  graph.listenTo("root/path/value");
-  graph.listenTo("value");
-
-  graph.merge("root/path/value", { id: "value", state: Date.now() });
-  graph.merge("value", { value: true, state: Date.now() });
-
-  assert.equal(graph.get("root/path/value").getNode()?.getValue(), true);
-  assert.equal(graph.get("value").getValue(), true);
-
-  assert.end();
-});
-
-tape("Graph merge conflicts", (assert: tape.Test) => {
-  const graph = new Graph<any>();
-
-  graph.get("root/path/value").set(true);
-  graph.get("value").set(graph.get("root/path"));
-
-  graph.listenTo("root/path/value");
-  graph.listenTo("value");
-
-  graph.merge("root/path/value", { id: "value", state: Date.now() + 1 });
-  graph.merge("value", { value: true, state: Date.now() + 1 });
-
-  assert.equal(graph.get("root/path/value").getNode()?.getValue(), true);
-  assert.equal(graph.get("value").getValue(), true);
-
-  assert.end();
-});
-
 tape("Graph toJSON", (assert: tape.Test) => {
   const graph = new Graph<any>();
   graph.get("root").set({

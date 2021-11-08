@@ -9,8 +9,16 @@ export type IGraph = { [S in string]: IGraphNode } & {
 };
 export type IGraphNode = IPrimitive | Ref | IGraph;
 
-export type IReturn<T extends IGraphNode> = T extends IGraph
-  ? { [K in IKeyOf<T>]: IReturn<T[K]> }
+export type IRefValueChild<T extends IGraphNode> = T extends IGraph
+  ? Ref<T>
+  : T;
+
+export type IRefValue<T extends IGraphNode> = T extends IGraph
+  ? { [K in IKeyOf<T>]: IRefValueChild<T[K]> }
+  : T;
+
+export type IValue<T extends IGraphNode> = T extends IGraph
+  ? { [K in IKeyOf<T>]: IValue<T[K]> }
   : T extends Ref<infer V>
   ? V
   : T;
@@ -56,14 +64,6 @@ export interface INodeJSON extends IEntryJSON {
 export class Node extends Entry {
   children: Map<string, Edge | Node> = new Map();
 
-  getValue() {
-    return getValueAtPath([], this, new Map());
-  }
-
-  toNodesJSON() {
-    return nodeMapToJSON(this.children, {}, this.getPath(), false);
-  }
-
   toJSON(): INodeJSON {
     const children: INodeJSON["children"] = {};
     for (const [key, child] of this.children) {
@@ -99,10 +99,6 @@ export class Edge extends Entry {
     this.value = value;
   }
 
-  getValue() {
-    return getValueAtPath([], this, new Map());
-  }
-
   toJSON(): IEdgeJSON | IRefJSON {
     return this.value instanceof Ref
       ? this.value.toJSON()
@@ -118,7 +114,7 @@ export interface IRefJSON extends IEntryJSON {
 }
 
 export class Ref<T extends IGraphNode = IGraphNode>
-  implements PromiseLike<IReturn<T> | undefined>
+  implements PromiseLike<IValue<T> | undefined>
 {
   protected graph: Graph;
   protected path: string;
@@ -141,8 +137,11 @@ export class Ref<T extends IGraphNode = IGraphNode>
     this.graph.set(this.path, value);
     return this;
   }
-  getValue(): IReturn<T> | undefined {
-    return this.graph.getValueAtPath(this.path) as IReturn<T>;
+  getValue(): IValue<T> | undefined {
+    return this.graph.getValueAtPath<T>(this.path);
+  }
+  getRefValue(): IRefValue<T> | undefined {
+    return this.graph.getRefValueAtPath<T>(this.path);
   }
   getPath() {
     return this.path;
@@ -154,16 +153,15 @@ export class Ref<T extends IGraphNode = IGraphNode>
     return this.state;
   }
 
-  on(callback: (value: IReturn<T> | undefined) => void) {
-    const node = this.getNode();
+  on(callback: (value: IRefValue<T> | undefined) => void) {
     const onChange = (path: string) => {
-      if (path.startsWith(node?.getPath() || this.path)) {
-        callback(this.getValue());
+      if (path.startsWith(this.path)) {
+        callback(this.getRefValue());
       }
     };
-    this.graph.listenTo(node ? node.getPath() : this.path);
+    this.graph.listenTo(this.path);
     this.graph.on("change", onChange);
-    const value = getValueAtPath([], node, new Map()) as IReturn<T> | undefined;
+    const value = this.getRefValue();
     if (value !== undefined) {
       callback(value);
     }
@@ -172,29 +170,28 @@ export class Ref<T extends IGraphNode = IGraphNode>
     };
   }
 
-  then<R = IReturn<T> | undefined, E = never>(
+  then<R = IValue<T> | undefined, E = never>(
     onfulfilled?:
-      | ((value: IReturn<T> | undefined) => R | PromiseLike<R>)
+      | ((value: IValue<T> | undefined) => R | PromiseLike<R>)
       | undefined
       | null,
     onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null
   ): PromiseLike<R | E> {
-    const node = this.getNode(),
-      value = getValueAtPath([], node, new Map()) as IReturn<T> | undefined;
-    let promise: PromiseLike<IReturn<T> | undefined>;
+    const value = this.getValue();
+    let promise: PromiseLike<IValue<T> | undefined>;
 
     if (value !== undefined) {
       if (value instanceof Ref) {
         promise = value.then();
       } else {
-        promise = Promise.resolve<IReturn<T>>(value);
+        promise = Promise.resolve<IValue<T>>(value);
       }
     } else {
-      this.graph.listenTo(node ? node.getPath() : this.path);
+      this.graph.listenTo(this.path);
       promise = new Promise((resolve) => {
         const onChange = (path: string) => {
           if (path.startsWith(this.path)) {
-            resolve(this.getValue());
+            resolve(this.getValue() as any);
           }
         };
         this.graph.once("change", onChange);
@@ -236,12 +233,24 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     return new Ref(this, key, this.state);
   }
 
-  getValueAtPath(path: string) {
+  getValueAtPath<V extends IGraphNode = IGraphNode>(path: string) {
     const keys = path.split(SEPERATOR),
       node = this.entries.get(keys.shift() as string);
 
     if (node) {
-      return getValueAtPath(keys, node, new Map());
+      return getValueAtPath<V>(keys, node, new Map());
+    } else {
+      this.listenTo(path);
+      return undefined;
+    }
+  }
+
+  getRefValueAtPath<V extends IGraphNode = IGraphNode>(path: string) {
+    const keys = path.split(SEPERATOR),
+      node = this.entries.get(keys.shift() as string);
+
+    if (node) {
+      return getRefValueAtPath<V>(keys, node);
     } else {
       this.listenTo(path);
       return undefined;
@@ -450,17 +459,73 @@ export function getParentPathAndKey(
   }
 }
 
-function getValueAtPath(
+function getRefValueAtPath<T extends IGraphNode = IGraphNode>(
+  keys: string[],
+  node: Node | Edge | undefined
+): IRefValue<T> | undefined {
+  if (!node) {
+    return undefined;
+  }
+  if (node instanceof Node) {
+    const key = keys.shift() as string;
+
+    if (key) {
+      const child = node.children.get(key);
+
+      if (child) {
+        return getRefValueAtPath<T>(keys, child);
+      } else {
+        node.graph.listenTo(node.getPath() + SEPERATOR + key);
+        return undefined;
+      }
+    } else {
+      const children: {
+        [key: string]: any;
+      } = {};
+      for (const [k, c] of node.children) {
+        const childPath = node.getPath() + SEPERATOR + k;
+        if (
+          c instanceof Edge &&
+          c.value instanceof Ref &&
+          c.getPath() === childPath
+        ) {
+          children[k] = new Ref(node.graph, childPath, c.state);
+        } else if (c instanceof Edge) {
+          children[k] = c.value;
+        } else {
+          children[k] = new Ref(node.graph, childPath, c.state);
+        }
+      }
+      return children as IRefValue<T>;
+    }
+  } else if (node.value instanceof Ref) {
+    if (node.getPath() === node.value.getPath()) {
+      node.graph.listenTo(node.value.getPath());
+      return undefined;
+    }
+    const refNode = node.value.getNode();
+
+    if (refNode) {
+      return getRefValueAtPath<T>(keys, refNode);
+    } else {
+      node.graph.listenTo(node.value.getPath());
+      return undefined;
+    }
+  }
+  return node.value as IRefValue<T>;
+}
+
+function getValueAtPath<T extends IGraphNode>(
   keys: string[],
   node: Node | Edge | undefined,
   values: Map<Node | Edge, IGraphNode | undefined>
-): IGraphNode | undefined {
+): IValue<T> | undefined {
   if (!node) {
     return undefined;
   }
   const seen = values.get(node);
   if (seen) {
-    return seen;
+    return seen as IValue<T>;
   }
   if (node instanceof Node) {
     const key = keys.shift() as string;
@@ -498,7 +563,7 @@ function getValueAtPath(
           }
         }
       }
-      return children;
+      return children as IValue<T>;
     }
   } else if (node.value instanceof Ref) {
     if (node.getPath() === node.value.getPath()) {
@@ -517,7 +582,7 @@ function getValueAtPath(
     }
   }
   values.set(node, node.value);
-  return node.value;
+  return node.value as IValue<T>;
 }
 
 function getNodeAtPath(

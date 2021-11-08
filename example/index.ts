@@ -22,6 +22,7 @@ type IMessage =
 
 type IUser = {
   name: string;
+  things: { [key: string]: number };
 };
 
 type IState = {
@@ -88,7 +89,7 @@ async function onLoad() {
   });
 
   graph.get("user").on((user) => {
-    document.getElementById("name").innerHTML = user?.name;
+    document.getElementById("name").innerHTML = user.getValue().name;
   });
 
   document.getElementById("name-input").addEventListener("input", (e) => {
