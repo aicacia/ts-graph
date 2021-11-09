@@ -69,7 +69,7 @@ async function onLoad() {
 
       if (node) {
         mesh.broadcast({
-          path: data.path,
+          path: node.getPath(),
           json: node.toJSON(),
         });
       }
@@ -84,12 +84,16 @@ async function onLoad() {
 
   const users = graph.get("rooms").get("r1").get("users");
 
-  users.on((_users) => {
-    document.getElementById("json").innerHTML = JSON.stringify(graph, null, 2);
+  users.on(async (users) => {
+    document.getElementById("json").innerHTML = JSON.stringify(
+      await Promise.all(Object.values(users)),
+      null,
+      2
+    );
   });
 
   graph.get("user").on((user) => {
-    document.getElementById("name").innerHTML = user.getValue().name;
+    document.getElementById("name").innerHTML = user?.name;
   });
 
   document.getElementById("name-input").addEventListener("input", (e) => {

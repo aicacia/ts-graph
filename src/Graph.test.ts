@@ -1,5 +1,5 @@
 import tape from "tape";
-import { Graph, IEdgeJSON, IRefJSON, Ref } from "./Graph";
+import { Graph, Ref } from "./Graph";
 
 tape("Graph root level edges", (assert: tape.Test) => {
   const graph = new Graph<{
@@ -35,12 +35,13 @@ tape("Graph circular ref test", (assert: tape.Test) => {
       billy: graph.get("billy").set({
         name: "Billy",
         parent: graph.get("nathan"),
-        parentName: graph.get("nathan").get("name") as Ref<string>,
+        parentName: graph.get("nathan").get("name"),
       }),
     },
   });
 
   assert.equal(graph.get("billy").get("name").getValue(), "Billy");
+  assert.equal(graph.get("nathan").get("name").getValue(), "Nathan");
   assert.equal(
     graph
       .get("nathan")
@@ -75,16 +76,46 @@ tape("Graph get missing", (assert: tape.Test) => {
   assert.end();
 });
 
-tape("Graph toJSON", (assert: tape.Test) => {
-  const graph = new Graph<any>();
-  graph.get("root").set({
-    parent: graph.get("parent").set({
-      child: graph.get("child").get("name").set("Child"),
-    }),
+tape("Graph syncing graphs", (assert: tape.Test) => {
+  type State = {
+    parent: {
+      child: {
+        name: string;
+      };
+    };
+  };
+  const a = new Graph<State>();
+  const b = new Graph<State>();
+
+  a.on("set", (path, json) => {
+    b.merge(path, json);
+  }).on("get", (path) => {
+    const node = b.getNodeAtPath(path);
+
+    if (node) {
+      a.merge(node.getPath(), node.toJSON());
+    }
   });
-  const json = graph.toJSON();
-  assert.equal((json["child/name"] as IEdgeJSON).value, "Child");
-  assert.equal((json["parent/child"] as IRefJSON).id, "child/name");
-  assert.equal((json["root/parent"] as IRefJSON).id, "parent");
+  b.on("set", (path, json) => {
+    a.merge(path, json);
+  }).on("get", (path) => {
+    const node = a.getNodeAtPath(path);
+
+    if (node) {
+      b.merge(node.getPath(), node.toJSON());
+    }
+  });
+
+  b.get("parent")
+    .get("child")
+    .on((child) => {
+      assert.equal(child?.name, "Nathan");
+    });
+
+  a.get("parent").get("child").get("name").set("Nathan");
+
+  assert.equal(b.get("parent").get("child").get("name").getValue(), "Nathan");
+  assert.equal(a.get("parent").get("child").get("name").getValue(), "Nathan");
+
   assert.end();
 });

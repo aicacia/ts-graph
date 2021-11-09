@@ -1,14 +1,15 @@
 export type {
   IPrimitive,
   IGraph,
-  IGraphNode,
+  IGraphValue,
   IRefValue,
   IRefValueChild,
-  IValue,
   IEntryJSON,
   IEdgeJSON,
   IGraphEvents,
   IRefJSON,
+  IKeyOf,
+  IValueOf,
 } from "./Graph";
 export {
   Graph,
@@ -16,6 +17,6 @@ export {
   Node,
   Edge,
   Ref,
-  getParentPath,
   getParentPathAndKey,
+  SEPERATOR,
 } from "./Graph";
