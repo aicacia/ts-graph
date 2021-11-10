@@ -79,7 +79,7 @@ export declare class Graph<T extends IGraph = IGraph> extends EventEmitter<IGrap
     getNodeAtPath(path: string): Node | Edge | undefined;
     set(path: string, value: IGraphValue): this;
     merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON): this;
-    listenAtPath(path: string): this;
+    listenAtPath(path: string, emit?: boolean): this;
     isListening(path: string): boolean;
     private mergePathInternal;
     private setPathInternal;

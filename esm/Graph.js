@@ -97,7 +97,8 @@ export class Ref {
             }
         };
         this.graph.on("change", onChange);
-        const value = this.getValue();
+        const node = this.getNode(), value = node?.getValue();
+        this.graph.listenAtPath(node?.getPath() || this.path, value === undefined);
         if (value !== undefined) {
             callback(value);
         }
@@ -166,8 +167,10 @@ export class Graph extends EventEmitter {
         }
         return this;
     }
-    listenAtPath(path) {
-        this.emit("get", path);
+    listenAtPath(path, emit = true) {
+        if (emit) {
+            this.emit("get", path);
+        }
         this.listeningPaths.add(path);
         return this;
     }
