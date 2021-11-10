@@ -313,7 +313,17 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
 
   merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON) {
     if (this.isListening(path)) {
-      this.mergePathInternal(path, json);
+      const maxState = Date.now(),
+        jsonState = json.state;
+
+      if (jsonState > maxState) {
+        setTimeout(
+          () => this.mergePathInternal(path, json),
+          jsonState - maxState
+        );
+      } else {
+        this.mergePathInternal(path, json);
+      }
     }
     return this;
   }

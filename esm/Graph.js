@@ -199,7 +199,13 @@ export class Graph extends EventEmitter {
     }
     merge(path, json) {
         if (this.isListening(path)) {
-            this.mergePathInternal(path, json);
+            const maxState = Date.now(), jsonState = json.state;
+            if (jsonState > maxState) {
+                setTimeout(() => this.mergePathInternal(path, json), jsonState - maxState);
+            }
+            else {
+                this.mergePathInternal(path, json);
+            }
         }
         return this;
     }

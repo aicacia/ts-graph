@@ -156,3 +156,19 @@ tape("Graph syncing graphs", (assert: tape.Test) => {
 
   assert.end();
 });
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+tape("Graph merge future state", async (assert: tape.Test) => {
+  const graph = new Graph<{
+    ready: boolean;
+  }>();
+  graph.listenAtPath("ready");
+  graph.merge("ready", { value: true, state: Date.now() + 5 });
+  assert.equal(graph.get("ready").getValue(), undefined);
+  await wait(10);
+  assert.equal(graph.get("ready").getValue(), true);
+  assert.end();
+});
