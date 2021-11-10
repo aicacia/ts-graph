@@ -53,6 +53,7 @@ export declare class Ref<T extends IGraphValue = IGraphValue> implements Promise
     protected graph: Graph;
     protected path: string;
     protected state: number;
+    protected waitMS: number;
     constructor(graph: Graph, path: string, state: number);
     get<SK extends IKeyOf<T> = IKeyOf<T>>(key: SK): Ref<T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IValueOf<T[SK]>>;
     set(value: T | Ref<T>): this;
@@ -61,6 +62,8 @@ export declare class Ref<T extends IGraphValue = IGraphValue> implements Promise
     getNode(): Node | Edge | undefined;
     getState(): number;
     on(callback: (value: IRefValue<T> | undefined) => void): () => void;
+    getWaitMS(): number;
+    setWaitMS(waitMS: number): this;
     then<R = IRefValue<T> | undefined, E = never>(onfulfilled?: ((value: IRefValue<T> | undefined) => R | PromiseLike<R>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<R | E>;
     toJSON(): IRefJSON;
 }
@@ -73,6 +76,9 @@ export declare class Graph<T extends IGraph = IGraph> extends EventEmitter<IGrap
     protected state: number;
     protected entries: Map<string, Node | Edge>;
     protected listeningPaths: Set<string>;
+    protected waitMS: number;
+    setWaitMS(waitMS: number): this;
+    getWaitMS(): number;
     getEntries(): ReadonlyMap<string, Node | Edge>;
     get<K extends IKeyOf<T> = IKeyOf<T>>(key: K): Ref<T[K]>;
     getValueAtPath<V extends IGraphValue = IGraphValue>(path: string): IRefValue<V> | undefined;

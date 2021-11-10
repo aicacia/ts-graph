@@ -1,4 +1,5 @@
 import { EventEmitter } from "eventemitter3";
+import setImmediate from "immediate";
 
 export type IKeyOf<T> = Exclude<keyof T, symbol | number>;
 export type IValueOf<T> = Extract<T, IPrimitive>;
@@ -124,11 +125,13 @@ export class Ref<T extends IGraphValue = IGraphValue>
   protected graph: Graph;
   protected path: string;
   protected state: number;
+  protected waitMS: number;
 
   constructor(graph: Graph, path: string, state: number) {
     this.graph = graph;
     this.path = path;
     this.state = state;
+    this.waitMS = graph.getWaitMS();
   }
 
   get<SK extends IKeyOf<T> = IKeyOf<T>>(
@@ -160,19 +163,33 @@ export class Ref<T extends IGraphValue = IGraphValue>
   }
 
   on(callback: (value: IRefValue<T> | undefined) => void) {
+    let currentNode = this.getNode();
+
     const onChange = (path: string) => {
       const node = this.getNode();
 
-      if (node && path.startsWith(node.getPath())) {
-        callback(node.getValue() as IRefValue<T>);
+      if (node) {
+        const value = node.getValue() as IRefValue<T>;
+
+        if (currentNode !== node) {
+          this.graph.listenAtPath(node.getPath(), value === undefined);
+          currentNode = node;
+        }
+
+        if (path.startsWith(node.getPath())) {
+          callback(value);
+        }
+      } else {
+        currentNode = node;
       }
     };
     this.graph.on("change", onChange);
 
-    const node = this.getNode(),
-      value = node?.getValue() as IRefValue<T>;
-
-    this.graph.listenAtPath(node?.getPath() || this.path, value === undefined);
+    const value = currentNode?.getValue() as IRefValue<T>;
+    this.graph.listenAtPath(
+      currentNode?.getPath() || this.path,
+      value === undefined
+    );
 
     if (value !== undefined) {
       callback(value);
@@ -181,6 +198,14 @@ export class Ref<T extends IGraphValue = IGraphValue>
     return () => {
       this.graph.off("change", onChange);
     };
+  }
+
+  getWaitMS() {
+    return this.waitMS;
+  }
+  setWaitMS(waitMS: number) {
+    this.waitMS = waitMS;
+    return this;
   }
 
   then<R = IRefValue<T> | undefined, E = never>(
@@ -196,11 +221,21 @@ export class Ref<T extends IGraphValue = IGraphValue>
     if (value !== undefined) {
       promise = Promise.resolve<IRefValue<T> | undefined>(value);
     } else {
-      promise = new Promise((resolve) => {
+      promise = new Promise((resolve, reject) => {
+        let resolved = false;
         const off = this.on((value) => {
-          off();
+          resolved = true;
+          setImmediate(off);
           resolve(value);
         });
+        setTimeout(() => {
+          if (!resolved) {
+            reject(
+              new Error(`Request took longer than ${this.waitMS}ms to resolve`)
+            );
+            off();
+          }
+        }, this.waitMS);
       });
     }
 
@@ -231,6 +266,15 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
   protected state = Date.now();
   protected entries: Map<string, Node | Edge> = new Map();
   protected listeningPaths: Set<string> = new Set();
+  protected waitMS = 5000;
+
+  setWaitMS(waitMS: number) {
+    this.waitMS = waitMS;
+    return this;
+  }
+  getWaitMS() {
+    return this.waitMS;
+  }
 
   getEntries(): ReadonlyMap<string, Node | Edge> {
     return this.entries;

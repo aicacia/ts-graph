@@ -1,4 +1,5 @@
 import { EventEmitter } from "eventemitter3";
+import setImmediate from "immediate";
 export const SEPERATOR = "/";
 export class Entry {
     graph;
@@ -65,10 +66,12 @@ export class Ref {
     graph;
     path;
     state;
+    waitMS;
     constructor(graph, path, state) {
         this.graph = graph;
         this.path = path;
         this.state = state;
+        this.waitMS = graph.getWaitMS();
     }
     get(key) {
         return new Ref(this.graph, this.path + SEPERATOR + key, this.state);
@@ -90,21 +93,39 @@ export class Ref {
         return this.state;
     }
     on(callback) {
+        let currentNode = this.getNode();
         const onChange = (path) => {
             const node = this.getNode();
-            if (node && path.startsWith(node.getPath())) {
-                callback(node.getValue());
+            if (node) {
+                const value = node.getValue();
+                if (currentNode !== node) {
+                    this.graph.listenAtPath(node.getPath(), value === undefined);
+                    currentNode = node;
+                }
+                if (path.startsWith(node.getPath())) {
+                    callback(value);
+                }
+            }
+            else {
+                currentNode = node;
             }
         };
         this.graph.on("change", onChange);
-        const node = this.getNode(), value = node?.getValue();
-        this.graph.listenAtPath(node?.getPath() || this.path, value === undefined);
+        const value = currentNode?.getValue();
+        this.graph.listenAtPath(currentNode?.getPath() || this.path, value === undefined);
         if (value !== undefined) {
             callback(value);
         }
         return () => {
             this.graph.off("change", onChange);
         };
+    }
+    getWaitMS() {
+        return this.waitMS;
+    }
+    setWaitMS(waitMS) {
+        this.waitMS = waitMS;
+        return this;
     }
     then(onfulfilled, onrejected) {
         const value = this.getValue();
@@ -113,11 +134,19 @@ export class Ref {
             promise = Promise.resolve(value);
         }
         else {
-            promise = new Promise((resolve) => {
+            promise = new Promise((resolve, reject) => {
+                let resolved = false;
                 const off = this.on((value) => {
-                    off();
+                    resolved = true;
+                    setImmediate(off);
                     resolve(value);
                 });
+                setTimeout(() => {
+                    if (!resolved) {
+                        reject(new Error(`Request took longer than ${this.waitMS}ms to resolve`));
+                        off();
+                    }
+                }, this.waitMS);
             });
         }
         return promise.then(onfulfilled, onrejected);
@@ -133,6 +162,14 @@ export class Graph extends EventEmitter {
     state = Date.now();
     entries = new Map();
     listeningPaths = new Set();
+    waitMS = 5000;
+    setWaitMS(waitMS) {
+        this.waitMS = waitMS;
+        return this;
+    }
+    getWaitMS() {
+        return this.waitMS;
+    }
     getEntries() {
         return this.entries;
     }

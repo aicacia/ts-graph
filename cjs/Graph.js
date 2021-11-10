@@ -1,7 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getParentPathAndKey = exports.Graph = exports.Ref = exports.Edge = exports.Node = exports.Entry = exports.SEPERATOR = void 0;
+const tslib_1 = require("tslib");
 const eventemitter3_1 = require("eventemitter3");
+const immediate_1 = (0, tslib_1.__importDefault)(require("immediate"));
 exports.SEPERATOR = "/";
 class Entry {
     constructor(graph, parent, key, state) {
@@ -64,6 +66,7 @@ class Ref {
         this.graph = graph;
         this.path = path;
         this.state = state;
+        this.waitMS = graph.getWaitMS();
     }
     get(key) {
         return new Ref(this.graph, this.path + exports.SEPERATOR + key, this.state);
@@ -85,21 +88,39 @@ class Ref {
         return this.state;
     }
     on(callback) {
+        let currentNode = this.getNode();
         const onChange = (path) => {
             const node = this.getNode();
-            if (node && path.startsWith(node.getPath())) {
-                callback(node.getValue());
+            if (node) {
+                const value = node.getValue();
+                if (currentNode !== node) {
+                    this.graph.listenAtPath(node.getPath(), value === undefined);
+                    currentNode = node;
+                }
+                if (path.startsWith(node.getPath())) {
+                    callback(value);
+                }
+            }
+            else {
+                currentNode = node;
             }
         };
         this.graph.on("change", onChange);
-        const node = this.getNode(), value = node === null || node === void 0 ? void 0 : node.getValue();
-        this.graph.listenAtPath((node === null || node === void 0 ? void 0 : node.getPath()) || this.path, value === undefined);
+        const value = currentNode === null || currentNode === void 0 ? void 0 : currentNode.getValue();
+        this.graph.listenAtPath((currentNode === null || currentNode === void 0 ? void 0 : currentNode.getPath()) || this.path, value === undefined);
         if (value !== undefined) {
             callback(value);
         }
         return () => {
             this.graph.off("change", onChange);
         };
+    }
+    getWaitMS() {
+        return this.waitMS;
+    }
+    setWaitMS(waitMS) {
+        this.waitMS = waitMS;
+        return this;
     }
     then(onfulfilled, onrejected) {
         const value = this.getValue();
@@ -108,11 +129,19 @@ class Ref {
             promise = Promise.resolve(value);
         }
         else {
-            promise = new Promise((resolve) => {
+            promise = new Promise((resolve, reject) => {
+                let resolved = false;
                 const off = this.on((value) => {
-                    off();
+                    resolved = true;
+                    (0, immediate_1.default)(off);
                     resolve(value);
                 });
+                setTimeout(() => {
+                    if (!resolved) {
+                        reject(new Error(`Request took longer than ${this.waitMS}ms to resolve`));
+                        off();
+                    }
+                }, this.waitMS);
             });
         }
         return promise.then(onfulfilled, onrejected);
@@ -131,6 +160,14 @@ class Graph extends eventemitter3_1.EventEmitter {
         this.state = Date.now();
         this.entries = new Map();
         this.listeningPaths = new Set();
+        this.waitMS = 5000;
+    }
+    setWaitMS(waitMS) {
+        this.waitMS = waitMS;
+        return this;
+    }
+    getWaitMS() {
+        return this.waitMS;
     }
     getEntries() {
         return this.entries;

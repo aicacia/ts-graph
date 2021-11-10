@@ -10,6 +10,39 @@ tape("Graph root level edges", (assert: tape.Test) => {
   assert.end();
 });
 
+tape("Graph promise immediate", async (assert: tape.Test) => {
+  const graph = new Graph<{
+    ready: boolean;
+  }>();
+  graph.get("ready").set(true);
+  assert.equal(await graph.get("ready"), true);
+  assert.end();
+});
+
+tape("Graph promise missing", async (assert: tape.Test) => {
+  const graph = new Graph<{
+    ready: boolean;
+  }>();
+  const promise = graph.get("ready");
+  graph.get("ready").set(true);
+  assert.equal(await promise, true);
+  assert.end();
+});
+
+tape("Graph promise error", async (assert: tape.Test) => {
+  const graph = new Graph<{
+    ready: boolean;
+  }>();
+  let error: Error | undefined;
+  try {
+    await graph.get("ready").setWaitMS(1);
+  } catch (e) {
+    error = e as Error;
+  }
+  assert.equal(error?.message, `Request took longer than 1ms to resolve`);
+  assert.end();
+});
+
 tape("Graph circular ref test", (assert: tape.Test) => {
   type IBilly = {
     name: string;
