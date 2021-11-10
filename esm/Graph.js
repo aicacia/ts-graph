@@ -1,5 +1,4 @@
 import { EventEmitter } from "eventemitter3";
-import setImmediate from "immediate";
 export const SEPERATOR = "/";
 export class Entry {
     graph;
@@ -138,7 +137,7 @@ export class Ref {
                 let resolved = false;
                 const off = this.on((value) => {
                     resolved = true;
-                    setImmediate(off);
+                    off();
                     resolve(value);
                 });
                 setTimeout(() => {

@@ -1,5 +1,4 @@
 import { EventEmitter } from "eventemitter3";
-import setImmediate from "immediate";
 
 export type IKeyOf<T> = Exclude<keyof T, symbol | number>;
 export type IValueOf<T> = Extract<T, IPrimitive>;
@@ -225,7 +224,7 @@ export class Ref<T extends IGraphValue = IGraphValue>
         let resolved = false;
         const off = this.on((value) => {
           resolved = true;
-          setImmediate(off);
+          off();
           resolve(value);
         });
         setTimeout(() => {

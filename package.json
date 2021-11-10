@@ -39,7 +39,6 @@
     "@rollup/plugin-commonjs": "21",
     "@rollup/plugin-node-resolve": "13",
     "@rollup/plugin-typescript": "8",
-    "@types/immediate": "3",
     "@types/tape": "4",
     "@typescript-eslint/eslint-plugin": "5",
     "@typescript-eslint/parser": "5",
@@ -65,8 +64,7 @@
     "tslib": "2"
   },
   "dependencies": {
-    "eventemitter3": "4",
-    "immediate": "3"
+    "eventemitter3": "4"
   },
   "nyc": {
     "include": [

@@ -1,9 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getParentPathAndKey = exports.Graph = exports.Ref = exports.Edge = exports.Node = exports.Entry = exports.SEPERATOR = void 0;
-const tslib_1 = require("tslib");
 const eventemitter3_1 = require("eventemitter3");
-const immediate_1 = (0, tslib_1.__importDefault)(require("immediate"));
 exports.SEPERATOR = "/";
 class Entry {
     constructor(graph, parent, key, state) {
@@ -133,7 +131,7 @@ class Ref {
                 let resolved = false;
                 const off = this.on((value) => {
                     resolved = true;
-                    (0, immediate_1.default)(off);
+                    off();
                     resolve(value);
                 });
                 setTimeout(() => {

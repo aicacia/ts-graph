@@ -16,6 +16,7 @@ tape("Graph promise immediate", async (assert: tape.Test) => {
   }>();
   graph.get("ready").set(true);
   assert.equal(await graph.get("ready"), true);
+  assert.equal(graph.listenerCount("change"), 0);
   assert.end();
 });
 
@@ -23,9 +24,11 @@ tape("Graph promise missing", async (assert: tape.Test) => {
   const graph = new Graph<{
     ready: boolean;
   }>();
-  const promise = graph.get("ready");
+  const promise = graph.get("ready").then();
+  assert.equal(graph.listenerCount("change"), 1);
   graph.get("ready").set(true);
   assert.equal(await promise, true);
+  assert.equal(graph.listenerCount("change"), 0);
   assert.end();
 });
 
@@ -40,6 +43,7 @@ tape("Graph promise error", async (assert: tape.Test) => {
     error = e as Error;
   }
   assert.equal(error?.message, `Request took longer than 1ms to resolve`);
+  assert.equal(graph.listenerCount("change"), 0);
   assert.end();
 });
 
