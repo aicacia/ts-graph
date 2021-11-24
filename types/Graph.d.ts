@@ -1,72 +1,11 @@
 import { EventEmitter } from "eventemitter3";
-export declare type IKeyOf<T> = Exclude<keyof T, symbol | number>;
-export declare type IValueOf<T> = Extract<T, IPrimitive>;
-export declare type IPrimitive = string | number | boolean | null;
-export declare type IGraph = {
-    [S in string]: IGraphValue;
-} & {
-    [S in number]: IGraphValue;
-};
-export declare type IGraphValue = IPrimitive | Ref | IGraph;
-export declare type IRefValueChild<T extends IGraphValue> = T extends IGraph ? Ref<T> : T extends Ref<infer V> ? Ref<V> : T;
-export declare type IRefValue<T extends IGraphValue> = T extends IGraph ? {
-    [K in IKeyOf<T>]: IRefValueChild<T[K]>;
-} : T extends Ref<infer V> ? V : T;
-export declare const SEPERATOR = "/";
-export interface IEntryJSON {
-    state: number;
-}
-export declare class Entry {
-    graph: Graph;
-    parent: Entry | null;
-    key: string;
-    state: number;
-    constructor(graph: Graph, parent: Entry | null, key: string, state: number);
-    getValue(): string | number | boolean | Ref<IGraphValue> | IGraph | {
-        [x: string]: IPrimitive | Ref<IGraphValue> | Ref<IGraph>;
-    } | null | undefined;
-    getPath(): string;
-    toJSON(): IEntryJSON;
-}
-export interface INodeJSON extends IEntryJSON {
-    children: {
-        [key: string | symbol | number]: IEdgeJSON | IRefJSON | INodeJSON;
-    };
-}
-export declare class Node extends Entry {
-    children: Map<string, Edge | Node>;
-    toJSON(): INodeJSON;
-}
-export interface IEdgeJSON extends IEntryJSON {
-    value: IPrimitive;
-}
-export declare class Edge extends Entry {
-    value: IPrimitive | Ref;
-    constructor(graph: Graph, parent: Entry | null, key: string, state: number, value: IPrimitive);
-    getPath(): string;
-    toJSON(): IEdgeJSON | IRefJSON;
-}
-export interface IRefJSON extends IEntryJSON {
-    id: string;
-}
-export declare class Ref<T extends IGraphValue = IGraphValue> implements PromiseLike<IRefValue<T> | undefined> {
-    protected graph: Graph;
-    protected path: string;
-    protected state: number;
-    protected waitMS: number;
-    constructor(graph: Graph, path: string, state: number);
-    get<SK extends IKeyOf<T> = IKeyOf<T>>(key: SK): Ref<T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IValueOf<T[SK]>>;
-    set(value: T | Ref<T>): this;
-    getValue(): IRefValue<T> | undefined;
-    getPath(): string;
-    getNode(): Node | Edge | undefined;
-    getState(): number;
-    on(callback: (value: IRefValue<T> | undefined) => void): () => void;
-    getWaitMS(): number;
-    setWaitMS(waitMS: number): this;
-    then<R = IRefValue<T> | undefined, E = never>(onfulfilled?: ((value: IRefValue<T> | undefined) => R | PromiseLike<R>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<R | E>;
-    toJSON(): IRefJSON;
-}
+import type { IEdgeJSON } from "./Edge";
+import { Edge } from "./Edge";
+import type { INodeJSON } from "./Node";
+import { Node } from "./Node";
+import type { IRefJSON } from "./Ref";
+import { Ref } from "./Ref";
+import type { IGraph, IGraphValue, IKeyOf, IRefValue } from "./types";
 export interface IGraphEvents<T extends IGraph> {
     get(this: Graph<T>, path: string): void;
     set(this: Graph<T>, path: string, value: IRefJSON | IEdgeJSON): void;
@@ -88,6 +27,7 @@ export declare class Graph<T extends IGraph = IGraph> extends EventEmitter<IGrap
     listenAtPath(path: string, emit?: boolean): this;
     isListening(path: string): boolean;
     private mergePathInternal;
+    private mergePathEdgeInternal;
     private setPathInternal;
     private setEdgePathInternal;
     private createNodeAt;

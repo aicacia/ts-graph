@@ -1,5 +1,6 @@
 import tape from "tape";
-import { Graph, Ref } from "./Graph";
+import type { Ref } from ".";
+import { Graph } from ".";
 
 tape("Graph root level edges", (assert: tape.Test) => {
   const graph = new Graph<{

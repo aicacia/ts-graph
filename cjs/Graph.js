@@ -1,157 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getParentPathAndKey = exports.Graph = exports.Ref = exports.Edge = exports.Node = exports.Entry = exports.SEPERATOR = void 0;
+exports.getParentPathAndKey = exports.Graph = void 0;
 const eventemitter3_1 = require("eventemitter3");
-exports.SEPERATOR = "/";
-class Entry {
-    constructor(graph, parent, key, state) {
-        this.graph = graph;
-        this.parent = parent;
-        this.key = key;
-        this.state = state;
-    }
-    getValue() {
-        return this.graph.getValueAtPath(this.getPath());
-    }
-    getPath() {
-        return this.parent
-            ? this.parent.getPath() + exports.SEPERATOR + this.key
-            : this.key;
-    }
-    toJSON() {
-        return {
-            state: this.state,
-        };
-    }
-}
-exports.Entry = Entry;
-class Node extends Entry {
-    constructor() {
-        super(...arguments);
-        this.children = new Map();
-    }
-    toJSON() {
-        const children = {};
-        for (const [key, child] of this.children) {
-            if (child instanceof Node) {
-                children[key] = { state: child.state, id: child.getPath() };
-            }
-            else {
-                children[key] = child.toJSON();
-            }
-        }
-        return Object.assign(Object.assign({}, super.toJSON()), { children });
-    }
-}
-exports.Node = Node;
-class Edge extends Entry {
-    constructor(graph, parent, key, state, value) {
-        super(graph, parent, key, state);
-        this.value = value;
-    }
-    getPath() {
-        return this.value instanceof Ref ? this.value.getPath() : super.getPath();
-    }
-    toJSON() {
-        return this.value instanceof Ref
-            ? this.value.toJSON()
-            : Object.assign(Object.assign({}, super.toJSON()), { value: this.value });
-    }
-}
-exports.Edge = Edge;
-class Ref {
-    constructor(graph, path, state) {
-        this.graph = graph;
-        this.path = path;
-        this.state = state;
-        this.waitMS = graph.getWaitMS();
-    }
-    get(key) {
-        return new Ref(this.graph, this.path + exports.SEPERATOR + key, this.state);
-    }
-    set(value) {
-        this.graph.set(this.path, value);
-        return this;
-    }
-    getValue() {
-        return this.graph.getValueAtPath(this.path);
-    }
-    getPath() {
-        return this.path;
-    }
-    getNode() {
-        return this.graph.getNodeAtPath(this.path);
-    }
-    getState() {
-        return this.state;
-    }
-    on(callback) {
-        let currentNode = this.getNode();
-        const onChange = (path) => {
-            const node = this.getNode();
-            if (node) {
-                const value = node.getValue();
-                if (currentNode !== node) {
-                    this.graph.listenAtPath(node.getPath(), value === undefined);
-                    currentNode = node;
-                }
-                if (path.startsWith(node.getPath())) {
-                    callback(value);
-                }
-            }
-            else {
-                currentNode = node;
-            }
-        };
-        this.graph.on("change", onChange);
-        const value = currentNode === null || currentNode === void 0 ? void 0 : currentNode.getValue();
-        this.graph.listenAtPath((currentNode === null || currentNode === void 0 ? void 0 : currentNode.getPath()) || this.path, value === undefined);
-        if (value !== undefined) {
-            callback(value);
-        }
-        return () => {
-            this.graph.off("change", onChange);
-        };
-    }
-    getWaitMS() {
-        return this.waitMS;
-    }
-    setWaitMS(waitMS) {
-        this.waitMS = waitMS;
-        return this;
-    }
-    then(onfulfilled, onrejected) {
-        const value = this.getValue();
-        let promise;
-        if (value !== undefined) {
-            promise = Promise.resolve(value);
-        }
-        else {
-            promise = new Promise((resolve, reject) => {
-                let resolved = false;
-                const off = this.on((value) => {
-                    resolved = true;
-                    off();
-                    resolve(value);
-                });
-                setTimeout(() => {
-                    if (!resolved) {
-                        reject(new Error(`Request took longer than ${this.waitMS}ms to resolve`));
-                        off();
-                    }
-                }, this.waitMS);
-            });
-        }
-        return promise.then(onfulfilled, onrejected);
-    }
-    toJSON() {
-        return {
-            id: this.path,
-            state: this.state,
-        };
-    }
-}
-exports.Ref = Ref;
+const Edge_1 = require("./Edge");
+const Node_1 = require("./Node");
+const Ref_1 = require("./Ref");
+const types_1 = require("./types");
 class Graph extends eventemitter3_1.EventEmitter {
     constructor() {
         super(...arguments);
@@ -171,7 +25,7 @@ class Graph extends eventemitter3_1.EventEmitter {
         return this.entries;
     }
     get(key) {
-        return new Ref(this, key, this.state);
+        return new Ref_1.Ref(this, key, this.state);
     }
     getValueAtPath(path) {
         const node = this.getNodeAtPath(path);
@@ -197,12 +51,14 @@ class Graph extends eventemitter3_1.EventEmitter {
     }
     merge(path, json) {
         if (this.isListening(path)) {
-            const maxState = Date.now(), jsonState = json.state;
-            if (jsonState > maxState) {
-                setTimeout(() => this.mergePathInternal(path, json), jsonState - maxState);
+            const maxState = Date.now();
+            if ("children" in json) {
+                for (const [key, child] of Object.entries(json.children)) {
+                    this.mergePathInternal(path + types_1.SEPERATOR + key, child, maxState);
+                }
             }
             else {
-                this.mergePathInternal(path, json);
+                this.mergePathInternal(path, json, maxState);
             }
         }
         return this;
@@ -222,57 +78,47 @@ class Graph extends eventemitter3_1.EventEmitter {
         }
         return false;
     }
-    mergePathInternal(path, json) {
+    mergePathInternal(path, json, maxState) {
         const jsonState = json.state;
-        let node = this.getNodeAtPath(path);
-        if ("children" in json) {
-            if (node instanceof Edge) {
-                if (shouldOverwrite(node.value, node.state, node.value, jsonState)) {
-                    node = this.createNodeAt(path, jsonState);
-                    this.emit("change", node.getPath(), node.toJSON());
-                }
-            }
-            else if (!node) {
-                node = this.createNodeAt(path, jsonState);
-                this.emit("change", node.getPath(), node.toJSON());
-            }
-            if (node instanceof Node) {
-                for (const [key, child] of Object.entries(json.children)) {
-                    this.mergePathInternal(node.getPath() + exports.SEPERATOR + key, child);
-                }
-            }
+        if (jsonState > maxState) {
+            setTimeout(() => this.mergePathEdgeInternal(path, json), jsonState - maxState);
         }
         else {
-            const jsonValue = "value" in json ? json.value : new Ref(this, json.id, jsonState);
-            if (node instanceof Edge) {
-                if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
-                    node.value = jsonValue;
-                    node.state = jsonState;
-                    this.emit("change", node.getPath(), node.toJSON());
-                }
+            this.mergePathEdgeInternal(path, json);
+        }
+        return this;
+    }
+    mergePathEdgeInternal(path, json) {
+        const jsonState = json.state, node = this.getNodeAtPath(path);
+        const jsonValue = "value" in json ? json.value : new Ref_1.Ref(this, json.id, jsonState);
+        if (node instanceof Edge_1.Edge) {
+            if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
+                node.value = jsonValue;
+                node.state = jsonState;
+                this.emit("change", node.getPath(), node.toJSON());
             }
-            else if (node instanceof Node) {
-                if (shouldOverwrite(new Ref(this, node.getPath(), jsonState), node.state, jsonValue, jsonState)) {
-                    const newNode = this.createEdgeAt(path, jsonState);
-                    newNode.value = jsonValue;
-                    this.emit("change", newNode.getPath(), newNode.toJSON());
-                }
-            }
-            else {
+        }
+        else if (node instanceof Node_1.Node) {
+            if (shouldOverwrite(new Ref_1.Ref(this, node.getPath(), jsonState), node.state, jsonValue, jsonState)) {
                 const newNode = this.createEdgeAt(path, jsonState);
                 newNode.value = jsonValue;
                 this.emit("change", newNode.getPath(), newNode.toJSON());
             }
         }
+        else {
+            const newNode = this.createEdgeAt(path, jsonState);
+            newNode.value = jsonValue;
+            this.emit("change", newNode.getPath(), newNode.toJSON());
+        }
         return this;
     }
     setPathInternal(path, value, state) {
-        if (value instanceof Ref) {
+        if (value instanceof Ref_1.Ref) {
             this.setEdgePathInternal(path, value, state);
         }
         else if (value !== null && typeof value === "object") {
             for (const [k, v] of Object.entries(value)) {
-                this.setPathInternal(path + exports.SEPERATOR + k, v, state);
+                this.setPathInternal(path + types_1.SEPERATOR + k, v, state);
             }
         }
         else {
@@ -288,26 +134,26 @@ class Graph extends eventemitter3_1.EventEmitter {
         return edge;
     }
     createNodeAt(path, state) {
-        const keys = path.split(exports.SEPERATOR), key = keys.shift();
+        const keys = path.split(types_1.SEPERATOR), key = keys.shift();
         let parent = this.entries.get(key);
-        if (!(parent instanceof Node)) {
-            parent = new Node(this, null, key, state);
+        if (!(parent instanceof Node_1.Node)) {
+            parent = new Node_1.Node(this, null, key, state);
             this.entries.set(key, parent);
         }
         return keys.reduce((parent, key) => {
             const node = parent.children.get(key);
-            if (node instanceof Node) {
+            if (node instanceof Node_1.Node) {
                 return node;
             }
-            else if (node instanceof Edge) {
-                if (node.value instanceof Ref) {
+            else if (node instanceof Edge_1.Edge) {
+                if (node.value instanceof Ref_1.Ref) {
                     const refNode = node.value.getNode();
-                    if (refNode instanceof Node) {
+                    if (refNode instanceof Node_1.Node) {
                         return refNode;
                     }
                 }
             }
-            const newNode = new Node(this, parent, key, state);
+            const newNode = new Node_1.Node(this, parent, key, state);
             parent.children.set(key, newNode);
             return newNode;
         }, parent);
@@ -315,12 +161,12 @@ class Graph extends eventemitter3_1.EventEmitter {
     createEdgeAt(path, state) {
         const [parentPath, key] = getParentPathAndKey(path), parent = parentPath ? this.createNodeAt(parentPath, state) : null;
         let node = parent === null || parent === void 0 ? void 0 : parent.children.get(key);
-        if (node instanceof Edge) {
+        if (node instanceof Edge_1.Edge) {
             node.state = state;
             return node;
         }
         else {
-            node = new Edge(this, parent, key, state, null);
+            node = new Edge_1.Edge(this, parent, key, state, null);
             if (parent) {
                 parent === null || parent === void 0 ? void 0 : parent.children.set(key, node);
             }
@@ -348,7 +194,7 @@ function getNodeAtPath(graph, path, nodes) {
         return seen || undefined;
     }
     else {
-        const keys = path.split(exports.SEPERATOR), key = keys.shift(), node = graph.getEntries().get(key);
+        const keys = path.split(types_1.SEPERATOR), key = keys.shift(), node = graph.getEntries().get(key);
         if (node && keys.length) {
             nodes.set(key, node);
             return getNodeAtPathInternal(graph, key, node, keys, nodes);
@@ -359,10 +205,10 @@ function getNodeAtPath(graph, path, nodes) {
     }
 }
 function getNodeAtPathInternal(graph, path, node, keys, nodes = new Map()) {
-    if (node instanceof Node) {
+    if (node instanceof Node_1.Node) {
         const key = keys.shift();
         if (key) {
-            const child = node.children.get(key), childPath = path + exports.SEPERATOR + key;
+            const child = node.children.get(key), childPath = path + types_1.SEPERATOR + key;
             if (child) {
                 nodes.set(childPath, child);
                 return getNodeAtPathInternal(graph, childPath, child, keys, nodes);
@@ -377,7 +223,7 @@ function getNodeAtPathInternal(graph, path, node, keys, nodes = new Map()) {
             return node;
         }
     }
-    else if (node.value instanceof Ref) {
+    else if (node.value instanceof Ref_1.Ref) {
         const refPath = node.value.getPath(), refNode = getNodeAtPath(graph, refPath, nodes);
         if (refNode && refNode !== node) {
             return getNodeAtPathInternal(graph, path, refNode, keys, nodes);
@@ -396,17 +242,17 @@ function getValueAtNode(graph, node, seen = new Set()) {
     if (!node) {
         return undefined;
     }
-    else if (node instanceof Node) {
+    else if (node instanceof Node_1.Node) {
         const children = {};
         for (const [k, c] of node.children) {
-            const childValue = c instanceof Edge
+            const childValue = c instanceof Edge_1.Edge
                 ? c.value
-                : (children[k] = new Ref(graph, c.getPath(), c.state));
+                : (children[k] = new Ref_1.Ref(graph, c.getPath(), c.state));
             children[k] = childValue;
         }
         return children;
     }
-    else if (node.value instanceof Ref) {
+    else if (node.value instanceof Ref_1.Ref) {
         if (seen.has(node.value.getPath())) {
             return undefined;
         }

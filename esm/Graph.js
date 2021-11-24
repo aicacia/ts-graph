@@ -1,162 +1,8 @@
 import { EventEmitter } from "eventemitter3";
-export const SEPERATOR = "/";
-export class Entry {
-    graph;
-    parent;
-    key;
-    state;
-    constructor(graph, parent, key, state) {
-        this.graph = graph;
-        this.parent = parent;
-        this.key = key;
-        this.state = state;
-    }
-    getValue() {
-        return this.graph.getValueAtPath(this.getPath());
-    }
-    getPath() {
-        return this.parent
-            ? this.parent.getPath() + SEPERATOR + this.key
-            : this.key;
-    }
-    toJSON() {
-        return {
-            state: this.state,
-        };
-    }
-}
-export class Node extends Entry {
-    children = new Map();
-    toJSON() {
-        const children = {};
-        for (const [key, child] of this.children) {
-            if (child instanceof Node) {
-                children[key] = { state: child.state, id: child.getPath() };
-            }
-            else {
-                children[key] = child.toJSON();
-            }
-        }
-        return {
-            ...super.toJSON(),
-            children,
-        };
-    }
-}
-export class Edge extends Entry {
-    value;
-    constructor(graph, parent, key, state, value) {
-        super(graph, parent, key, state);
-        this.value = value;
-    }
-    getPath() {
-        return this.value instanceof Ref ? this.value.getPath() : super.getPath();
-    }
-    toJSON() {
-        return this.value instanceof Ref
-            ? this.value.toJSON()
-            : {
-                ...super.toJSON(),
-                value: this.value,
-            };
-    }
-}
-export class Ref {
-    graph;
-    path;
-    state;
-    waitMS;
-    constructor(graph, path, state) {
-        this.graph = graph;
-        this.path = path;
-        this.state = state;
-        this.waitMS = graph.getWaitMS();
-    }
-    get(key) {
-        return new Ref(this.graph, this.path + SEPERATOR + key, this.state);
-    }
-    set(value) {
-        this.graph.set(this.path, value);
-        return this;
-    }
-    getValue() {
-        return this.graph.getValueAtPath(this.path);
-    }
-    getPath() {
-        return this.path;
-    }
-    getNode() {
-        return this.graph.getNodeAtPath(this.path);
-    }
-    getState() {
-        return this.state;
-    }
-    on(callback) {
-        let currentNode = this.getNode();
-        const onChange = (path) => {
-            const node = this.getNode();
-            if (node) {
-                const value = node.getValue();
-                if (currentNode !== node) {
-                    this.graph.listenAtPath(node.getPath(), value === undefined);
-                    currentNode = node;
-                }
-                if (path.startsWith(node.getPath())) {
-                    callback(value);
-                }
-            }
-            else {
-                currentNode = node;
-            }
-        };
-        this.graph.on("change", onChange);
-        const value = currentNode?.getValue();
-        this.graph.listenAtPath(currentNode?.getPath() || this.path, value === undefined);
-        if (value !== undefined) {
-            callback(value);
-        }
-        return () => {
-            this.graph.off("change", onChange);
-        };
-    }
-    getWaitMS() {
-        return this.waitMS;
-    }
-    setWaitMS(waitMS) {
-        this.waitMS = waitMS;
-        return this;
-    }
-    then(onfulfilled, onrejected) {
-        const value = this.getValue();
-        let promise;
-        if (value !== undefined) {
-            promise = Promise.resolve(value);
-        }
-        else {
-            promise = new Promise((resolve, reject) => {
-                let resolved = false;
-                const off = this.on((value) => {
-                    resolved = true;
-                    off();
-                    resolve(value);
-                });
-                setTimeout(() => {
-                    if (!resolved) {
-                        reject(new Error(`Request took longer than ${this.waitMS}ms to resolve`));
-                        off();
-                    }
-                }, this.waitMS);
-            });
-        }
-        return promise.then(onfulfilled, onrejected);
-    }
-    toJSON() {
-        return {
-            id: this.path,
-            state: this.state,
-        };
-    }
-}
+import { Edge } from "./Edge";
+import { Node } from "./Node";
+import { Ref } from "./Ref";
+import { SEPERATOR } from "./types";
 export class Graph extends EventEmitter {
     state = Date.now();
     entries = new Map();
@@ -199,12 +45,14 @@ export class Graph extends EventEmitter {
     }
     merge(path, json) {
         if (this.isListening(path)) {
-            const maxState = Date.now(), jsonState = json.state;
-            if (jsonState > maxState) {
-                setTimeout(() => this.mergePathInternal(path, json), jsonState - maxState);
+            const maxState = Date.now();
+            if ("children" in json) {
+                for (const [key, child] of Object.entries(json.children)) {
+                    this.mergePathInternal(path + SEPERATOR + key, child, maxState);
+                }
             }
             else {
-                this.mergePathInternal(path, json);
+                this.mergePathInternal(path, json, maxState);
             }
         }
         return this;
@@ -224,47 +72,37 @@ export class Graph extends EventEmitter {
         }
         return false;
     }
-    mergePathInternal(path, json) {
+    mergePathInternal(path, json, maxState) {
         const jsonState = json.state;
-        let node = this.getNodeAtPath(path);
-        if ("children" in json) {
-            if (node instanceof Edge) {
-                if (shouldOverwrite(node.value, node.state, node.value, jsonState)) {
-                    node = this.createNodeAt(path, jsonState);
-                    this.emit("change", node.getPath(), node.toJSON());
-                }
-            }
-            else if (!node) {
-                node = this.createNodeAt(path, jsonState);
-                this.emit("change", node.getPath(), node.toJSON());
-            }
-            if (node instanceof Node) {
-                for (const [key, child] of Object.entries(json.children)) {
-                    this.mergePathInternal(node.getPath() + SEPERATOR + key, child);
-                }
-            }
+        if (jsonState > maxState) {
+            setTimeout(() => this.mergePathEdgeInternal(path, json), jsonState - maxState);
         }
         else {
-            const jsonValue = "value" in json ? json.value : new Ref(this, json.id, jsonState);
-            if (node instanceof Edge) {
-                if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
-                    node.value = jsonValue;
-                    node.state = jsonState;
-                    this.emit("change", node.getPath(), node.toJSON());
-                }
+            this.mergePathEdgeInternal(path, json);
+        }
+        return this;
+    }
+    mergePathEdgeInternal(path, json) {
+        const jsonState = json.state, node = this.getNodeAtPath(path);
+        const jsonValue = "value" in json ? json.value : new Ref(this, json.id, jsonState);
+        if (node instanceof Edge) {
+            if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
+                node.value = jsonValue;
+                node.state = jsonState;
+                this.emit("change", node.getPath(), node.toJSON());
             }
-            else if (node instanceof Node) {
-                if (shouldOverwrite(new Ref(this, node.getPath(), jsonState), node.state, jsonValue, jsonState)) {
-                    const newNode = this.createEdgeAt(path, jsonState);
-                    newNode.value = jsonValue;
-                    this.emit("change", newNode.getPath(), newNode.toJSON());
-                }
-            }
-            else {
+        }
+        else if (node instanceof Node) {
+            if (shouldOverwrite(new Ref(this, node.getPath(), jsonState), node.state, jsonValue, jsonState)) {
                 const newNode = this.createEdgeAt(path, jsonState);
                 newNode.value = jsonValue;
                 this.emit("change", newNode.getPath(), newNode.toJSON());
             }
+        }
+        else {
+            const newNode = this.createEdgeAt(path, jsonState);
+            newNode.value = jsonValue;
+            this.emit("change", newNode.getPath(), newNode.toJSON());
         }
         return this;
     }

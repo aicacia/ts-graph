@@ -1,7 +1,7 @@
 import SimplePeer from "simple-peer";
 import { Mesh, Peer } from "@aicacia/mesh";
 import { Graph, Ref } from "../src";
-import type { IRefJSON, IEdgeJSON, INodeJSON } from "../src/Graph";
+import type { IRefJSON, IEdgeJSON, INodeJSON } from "../src";
 
 declare global {
   interface Window {
