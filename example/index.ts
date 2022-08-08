@@ -37,7 +37,8 @@ type IState = {
 };
 
 async function onLoad() {
-  const peer = new Peer(SimplePeer, {
+  const peer = new Peer({
+      SimplePeer,
       namespace: "example-graph",
     }),
     mesh = new Mesh(peer),
