@@ -1,4 +1,5 @@
 import SimplePeer from "simple-peer";
+import { io } from "socket.io-client";
 import { Mesh, Peer } from "@aicacia/mesh";
 import { Graph, Ref } from "../src";
 import type { IRefJSON, IEdgeJSON, INodeJSON } from "../src";
@@ -37,13 +38,12 @@ type IState = {
 };
 
 async function onLoad() {
-  const peer = new Peer({
-      SimplePeer,
-      namespace: "example-graph",
-    }),
-    mesh = new Mesh(peer),
+  const peer = new Peer(io("wss://mesh.aicacia.com/graph-example"), SimplePeer),
+    mesh = new Mesh<IMessage>(peer),
     graph = new Graph<IState>();
 
+  window.peer = peer;
+  window.mesh = mesh;
   window.graph = graph;
 
   graph
@@ -86,18 +86,22 @@ async function onLoad() {
   const users = graph.get("rooms").get("r1").get("users");
 
   users.on(async (users) => {
-    document.getElementById("json").innerHTML = JSON.stringify(
-      await Promise.all(Object.values(users)),
-      null,
-      2
-    );
+    if (users) {
+      const jsonElement = document.getElementById("json") as HTMLElement;
+      const json = (
+        await Promise.all(Object.values(users).map((ref) => ref.then()))
+      ).filter((user) => user !== undefined);
+      jsonElement.innerHTML = JSON.stringify(json, null, 2);
+    }
   });
 
+  const nameElement = document.getElementById("name") as HTMLElement;
   graph.get("user").on((user) => {
-    document.getElementById("name").innerHTML = user?.name;
+    nameElement.innerHTML = user?.name || "Unknown";
   });
 
-  document.getElementById("name-input").addEventListener("input", (e) => {
+  const nameInputElement = document.getElementById("name-input") as HTMLElement;
+  nameInputElement.addEventListener("input", (e) => {
     users
       .get(peer.getId())
       .get("name")

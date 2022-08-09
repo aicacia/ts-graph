@@ -7,7 +7,6 @@ class Ref {
         this.graph = graph;
         this.path = path;
         this.state = state;
-        this.waitMS = graph.getWaitMS();
     }
     get(key) {
         return new Ref(this.graph, this.path + types_1.SEPERATOR + key, this.state);
@@ -56,8 +55,15 @@ class Ref {
             this.graph.off("change", onChange);
         };
     }
+    once(callback) {
+        const off = this.on((value) => {
+            off();
+            callback(value);
+        });
+        return this;
+    }
     getWaitMS() {
-        return this.waitMS;
+        return this.waitMS === undefined ? this.graph.getWaitMS() : this.waitMS;
     }
     setWaitMS(waitMS) {
         this.waitMS = waitMS;
@@ -71,18 +77,15 @@ class Ref {
         }
         else {
             promise = new Promise((resolve, reject) => {
-                let resolved = false;
                 const off = this.on((value) => {
-                    resolved = true;
+                    clearTimeout(timeoutId);
                     off();
                     resolve(value);
                 });
-                setTimeout(() => {
-                    if (!resolved) {
-                        reject(new Error(`Request took longer than ${this.waitMS}ms to resolve`));
-                        off();
-                    }
-                }, this.waitMS);
+                const timeoutId = setTimeout(() => {
+                    off();
+                    reject(new Error(`Request took longer than ${this.getWaitMS()}ms to resolve`));
+                }, this.getWaitMS());
             });
         }
         return promise.then(onfulfilled, onrejected);

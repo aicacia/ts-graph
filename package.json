@@ -22,7 +22,6 @@
     "prettier": "prettier --ignore-path ./.eslintignore --ignore-unknown --write .",
     "preCommit": "npm run prettier && npm run lint && npm run coverage && npm run prepublishOnly",
     "example": "parcel serve example/index.html",
-    "server": "peerjs --port 8080 --key peerjs --path / --expire_timeout 1000 --alive_timeout 5000",
     "prepare": "husky install"
   },
   "keywords": [
@@ -32,23 +31,22 @@
   "license": "(MIT OR Apache-2.0)",
   "readmeFilename": "README.md",
   "devDependencies": {
-    "@aicacia/mesh": "github:aicacia/ts-mesh#ac5e9fab61d0b031b372ccb85ff996c4360cf51f",
+    "@aicacia/mesh": "github:aicacia/ts-mesh#4559c45bb6ebca40a499f0f12017130887385821",
     "@rollup/plugin-commonjs": "22",
     "@rollup/plugin-node-resolve": "13",
     "@rollup/plugin-typescript": "8",
-    "@types/peerjs": "1",
     "@types/tape": "4",
     "@typescript-eslint/eslint-plugin": "5",
     "@typescript-eslint/parser": "5",
     "eslint": "8",
     "eslint-config-prettier": "8",
     "eslint-plugin-prettier": "4",
+    "events": "3",
     "husky": "8",
     "nyc": "15",
     "parcel": "2",
-    "peer": "0",
-    "peerjs": "1",
     "prettier": "2",
+    "process": "0",
     "rollup-plugin-esm-import-to-url": "2",
     "rollup-plugin-terser": "7",
     "simple-peer": "9",
@@ -64,7 +62,8 @@
     "tslib": "2"
   },
   "dependencies": {
-    "eventemitter3": "4"
+    "eventemitter3": "4",
+    "socket.io-client": "^4.5.1"
   },
   "nyc": {
     "include": [

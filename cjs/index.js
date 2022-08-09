@@ -9,4 +9,5 @@ Object.defineProperty(exports, "getParentPathAndKey", { enumerable: true, get: f
 var Node_1 = require("./Node");
 Object.defineProperty(exports, "Node", { enumerable: true, get: function () { return Node_1.Node; } });
 var Ref_1 = require("./Ref");
-Object.defineProperty(exports, "Ref", { enumerable: true, get: function () { return Ref_1.Ref; } });
+var Ref_2 = require("./Ref");
+Object.defineProperty(exports, "Ref", { enumerable: true, get: function () { return Ref_2.Ref; } });

@@ -8,7 +8,7 @@ export declare class Ref<T extends IGraphValue = IGraphValue> implements Promise
     protected graph: Graph;
     protected path: string;
     protected state: number;
-    protected waitMS: number;
+    protected waitMS: number | undefined;
     constructor(graph: Graph, path: string, state: number);
     get<SK extends IKeyOf<T> = IKeyOf<T>>(key: SK): Ref<T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IValueOf<T[SK]>>;
     set(value: T | Ref<T>): this;
@@ -17,8 +17,9 @@ export declare class Ref<T extends IGraphValue = IGraphValue> implements Promise
     getNode(): import("./Node").Node | import("./Edge").Edge | undefined;
     getState(): number;
     on(callback: (value: IRefValue<T> | undefined) => void): () => void;
+    once(callback: (value: IRefValue<T> | undefined) => void): this;
     getWaitMS(): number;
     setWaitMS(waitMS: number): this;
-    then<R = IRefValue<T> | undefined, E = never>(onfulfilled?: ((value: IRefValue<T> | undefined) => R | PromiseLike<R>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): PromiseLike<R | E>;
+    then<R = IRefValue<T> | undefined, E = never>(onfulfilled?: ((value: IRefValue<T> | undefined) => R | PromiseLike<R>) | undefined | null, onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null): Promise<R | E>;
     toJSON(): IRefJSON;
 }

@@ -19,13 +19,12 @@ export class Ref<T extends IGraphValue = IGraphValue>
   protected graph: Graph;
   protected path: string;
   protected state: number;
-  protected waitMS: number;
+  protected waitMS: number | undefined;
 
   constructor(graph: Graph, path: string, state: number) {
     this.graph = graph;
     this.path = path;
     this.state = state;
-    this.waitMS = graph.getWaitMS();
   }
 
   get<SK extends IKeyOf<T> = IKeyOf<T>>(
@@ -94,8 +93,16 @@ export class Ref<T extends IGraphValue = IGraphValue>
     };
   }
 
+  once(callback: (value: IRefValue<T> | undefined) => void) {
+    const off = this.on((value) => {
+      off();
+      callback(value);
+    });
+    return this;
+  }
+
   getWaitMS() {
-    return this.waitMS;
+    return this.waitMS === undefined ? this.graph.getWaitMS() : this.waitMS;
   }
   setWaitMS(waitMS: number) {
     this.waitMS = waitMS;
@@ -108,7 +115,7 @@ export class Ref<T extends IGraphValue = IGraphValue>
       | undefined
       | null,
     onrejected?: ((reason: any) => E | PromiseLike<E>) | undefined | null
-  ): PromiseLike<R | E> {
+  ): Promise<R | E> {
     const value = this.getValue();
     let promise: Promise<IRefValue<T> | undefined>;
 
@@ -116,20 +123,19 @@ export class Ref<T extends IGraphValue = IGraphValue>
       promise = Promise.resolve<IRefValue<T> | undefined>(value);
     } else {
       promise = new Promise((resolve, reject) => {
-        let resolved = false;
         const off = this.on((value) => {
-          resolved = true;
+          clearTimeout(timeoutId);
           off();
           resolve(value);
         });
-        setTimeout(() => {
-          if (!resolved) {
-            reject(
-              new Error(`Request took longer than ${this.waitMS}ms to resolve`)
-            );
-            off();
-          }
-        }, this.waitMS);
+        const timeoutId = setTimeout(() => {
+          off();
+          reject(
+            new Error(
+              `Request took longer than ${this.getWaitMS()}ms to resolve`
+            )
+          );
+        }, this.getWaitMS());
       });
     }
 
