@@ -79,10 +79,6 @@ async function onLoad() {
 
   await peer.connected();
 
-  graph
-    .get("user")
-    .set(graph.get("rooms").get("r1").get("users").get(peer.getId()));
-
   const users = graph.get("rooms").get("r1").get("users");
 
   users.on(async (users) => {
@@ -97,7 +93,7 @@ async function onLoad() {
 
   const nameElement = document.getElementById("name") as HTMLElement;
   graph.get("user").on((user) => {
-    nameElement.innerHTML = user?.name || "Unknown";
+    nameElement.innerHTML = user?.name || "";
   });
 
   const nameInputElement = document.getElementById("name-input") as HTMLElement;
@@ -107,6 +103,13 @@ async function onLoad() {
       .get("name")
       .set((e.currentTarget as HTMLInputElement).value);
   });
+
+  users.get(peer.getId()).get("name").set("Anonymous");
+
+  // set current user ref
+  graph
+    .get("user")
+    .set(graph.get("rooms").get("r1").get("users").get(peer.getId()));
 }
 
 window.addEventListener("load", onLoad);

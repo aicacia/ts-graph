@@ -40,6 +40,7 @@
     "@typescript-eslint/parser": "5",
     "eslint": "8",
     "eslint-config-prettier": "8",
+    "socket.io-client": "4",
     "eslint-plugin-prettier": "4",
     "events": "3",
     "husky": "8",
@@ -62,8 +63,7 @@
     "tslib": "2"
   },
   "dependencies": {
-    "eventemitter3": "4",
-    "socket.io-client": "^4.5.1"
+    "eventemitter3": "4"
   },
   "nyc": {
     "include": [
