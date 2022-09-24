@@ -8,6 +8,8 @@ export interface INodeJSON extends IEntryJSON {
     };
 }
 export declare class Node extends Entry {
-    children: Map<string, Edge | Node>;
+    children: {
+        [key: string]: Edge | Node;
+    };
     toJSON(): INodeJSON;
 }

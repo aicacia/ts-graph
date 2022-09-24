@@ -12,6 +12,7 @@ export declare class Ref<T extends IGraphValue = IGraphValue> implements Promise
     constructor(graph: Graph, path: string, state: number);
     get<SK extends IKeyOf<T> = IKeyOf<T>>(key: SK): Ref<T[SK] extends IGraph ? T[SK] : T[SK] extends Ref<infer V> ? V : IValueOf<T[SK]>>;
     set(value: T | Ref<T>): this;
+    delete(): this;
     getValue(): IRefValue<T> | undefined;
     getPath(): string;
     getNode(): import("./Node").Node | import("./Edge").Edge | undefined;

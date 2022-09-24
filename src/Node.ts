@@ -10,20 +10,22 @@ export interface INodeJSON extends IEntryJSON {
 }
 
 export class Node extends Entry {
-  children: Map<string, Edge | Node> = new Map();
+  children: { [key: string]: Edge | Node } = {};
 
   toJSON(): INodeJSON {
-    const children: INodeJSON["children"] = {};
-    for (const [key, child] of this.children) {
-      if (child instanceof Node) {
-        children[key] = { state: child.state, id: child.getPath() };
-      } else {
-        children[key] = child.toJSON();
-      }
-    }
     return {
       ...super.toJSON(),
-      children,
+      children: Object.entries(this.children).reduce(
+        (children, [key, child]) => {
+          if (child instanceof Node) {
+            children[key] = { state: child.state, id: child.getPath() };
+          } else {
+            children[key] = child.toJSON();
+          }
+          return children;
+        },
+        {} as INodeJSON["children"]
+      ),
     };
   }
 }

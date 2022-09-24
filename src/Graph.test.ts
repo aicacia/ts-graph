@@ -173,3 +173,53 @@ tape("Graph merge future state", async (assert: tape.Test) => {
   assert.equal(graph.get("ready").getValue(), true);
   assert.end();
 });
+
+tape("Graph toJSON", async (assert: tape.Test) => {
+  type Person = {
+    name: string;
+    children: {
+      [id: string]: Ref<Person>;
+    };
+  };
+  const graph = new Graph<{
+    people: {
+      [id: string]: Person;
+    };
+  }>();
+  graph.get("people").get("1").get("name").set("Bob");
+  graph.get("people").get("2").get("name").set("Bill");
+  graph
+    .get("people")
+    .get("2")
+    .get("children")
+    .get("1")
+    .set(graph.get("people").get("1"));
+  graph
+    .get("people")
+    .get("1")
+    .get("children")
+    .get("2")
+    .set(graph.get("people").get("2"));
+
+  assert.deepEqual(removeKeyRecur(graph.toJSON(), "state"), {
+    entries: {
+      people: { children: { 1: { id: "people/1" }, 2: { id: "people/2" } } },
+    },
+  });
+  assert.end();
+});
+
+function removeKeyRecur<T>(value: T, key: string): T {
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).reduce((acc, [k, v]) => {
+      if (k !== key) {
+        acc[k] = removeKeyRecur(v, key);
+      }
+      return acc;
+    }, {} as any) as T;
+  } else if (Array.isArray(value)) {
+    return value.map((v) => removeKeyRecur(v, key)) as T;
+  } else {
+    return value;
+  }
+}

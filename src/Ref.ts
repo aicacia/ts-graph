@@ -42,6 +42,10 @@ export class Ref<T extends IGraphValue = IGraphValue>
     this.graph.set(this.path, value);
     return this;
   }
+  delete() {
+    this.graph.delete(this.path);
+    return this;
+  }
   getValue(): IRefValue<T> | undefined {
     return this.graph.getValueAtPath<T>(this.path);
   }

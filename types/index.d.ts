@@ -1,6 +1,6 @@
 export type { IEdgeJSON } from "./Edge";
 export { Edge } from "./Edge";
-export type { IGraphEvents } from "./Graph";
+export type { IGraphEvents, IDeleteJSON } from "./Graph";
 export { Graph, getParentPathAndKey } from "./Graph";
 export type { INodeJSON } from "./Node";
 export { Node } from "./Node";

@@ -2,7 +2,7 @@ import SimplePeer from "simple-peer";
 import { io } from "socket.io-client";
 import { Mesh, Peer } from "@aicacia/mesh";
 import { Graph, Ref } from "../src";
-import type { IRefJSON, IEdgeJSON, INodeJSON } from "../src";
+import type { IRefJSON, IEdgeJSON, INodeJSON, IDeleteJSON } from "../src";
 
 declare global {
   interface Window {
@@ -15,7 +15,7 @@ declare global {
 type IMessage =
   | {
       path: string;
-      json: IRefJSON | IEdgeJSON | INodeJSON;
+      json: IRefJSON | IEdgeJSON | INodeJSON | IDeleteJSON;
     }
   | {
       path: string;
@@ -110,6 +110,10 @@ async function onLoad() {
   graph
     .get("user")
     .set(graph.get("rooms").get("r1").get("users").get(peer.getId()));
+
+  peer.on("disconnection", (_connection, id) => {
+    users.get(id).delete();
+  });
 }
 
 window.addEventListener("load", onLoad);

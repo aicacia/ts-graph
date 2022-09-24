@@ -15,6 +15,10 @@ class Ref {
         this.graph.set(this.path, value);
         return this;
     }
+    delete() {
+        this.graph.delete(this.path);
+        return this;
+    }
     getValue() {
         return this.graph.getValueAtPath(this.path);
     }

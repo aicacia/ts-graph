@@ -1,9 +1,5 @@
 import { SEPERATOR, } from "./types";
 export class Ref {
-    graph;
-    path;
-    state;
-    waitMS;
     constructor(graph, path, state) {
         this.graph = graph;
         this.path = path;
@@ -14,6 +10,10 @@ export class Ref {
     }
     set(value) {
         this.graph.set(this.path, value);
+        return this;
+    }
+    delete() {
+        this.graph.delete(this.path);
         return this;
     }
     getValue() {
@@ -47,8 +47,8 @@ export class Ref {
             }
         };
         this.graph.on("change", onChange);
-        const value = currentNode?.getValue();
-        this.graph.listenAtPath(currentNode?.getPath() || this.path, value === undefined);
+        const value = currentNode === null || currentNode === void 0 ? void 0 : currentNode.getValue();
+        this.graph.listenAtPath((currentNode === null || currentNode === void 0 ? void 0 : currentNode.getPath()) || this.path, value === undefined);
         if (value !== undefined) {
             callback(value);
         }

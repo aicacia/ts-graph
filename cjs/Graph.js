@@ -10,7 +10,7 @@ class Graph extends eventemitter3_1.EventEmitter {
     constructor() {
         super(...arguments);
         this.state = Date.now();
-        this.entries = new Map();
+        this.entries = {};
         this.listeningPaths = new Set();
         this.waitMS = 5000;
     }
@@ -23,6 +23,9 @@ class Graph extends eventemitter3_1.EventEmitter {
     }
     getEntries() {
         return this.entries;
+    }
+    getState() {
+        return this.state;
     }
     get(key) {
         return new Ref_1.Ref(this, key, this.state);
@@ -42,11 +45,16 @@ class Graph extends eventemitter3_1.EventEmitter {
         return value;
     }
     getNodeAtPath(path) {
-        return getNodeAtPath(this, path, new Map());
+        return getNodeAtPath(this, path, {});
     }
     set(path, value) {
         this.state = Date.now();
         this.setPathInternal(path, value, this.state);
+        return this;
+    }
+    delete(path) {
+        this.state = Date.now();
+        this.deletePathInternal(path, this.state);
         return this;
     }
     merge(path, json) {
@@ -56,6 +64,9 @@ class Graph extends eventemitter3_1.EventEmitter {
                 for (const [key, child] of Object.entries(json.children)) {
                     this.mergePathInternal(path + types_1.SEPERATOR + key, child, maxState);
                 }
+            }
+            else if ("delete" in json) {
+                this.mergeDeletePathInternal(path, json.state, maxState);
             }
             else {
                 this.mergePathInternal(path, json, maxState);
@@ -77,6 +88,15 @@ class Graph extends eventemitter3_1.EventEmitter {
             }
         }
         return false;
+    }
+    toJSON() {
+        return {
+            state: this.state,
+            entries: Object.entries(this.entries).reduce((entries, [key, value]) => {
+                entries[key] = value.toJSON();
+                return entries;
+            }, {}),
+        };
     }
     mergePathInternal(path, json, maxState) {
         const jsonState = json.state;
@@ -112,6 +132,27 @@ class Graph extends eventemitter3_1.EventEmitter {
         }
         return this;
     }
+    mergeDeletePathInternal(path, jsonState, maxState) {
+        if (jsonState > maxState) {
+            setTimeout(() => this.mergeDeletePathEdgeInternal(path, jsonState), jsonState - maxState);
+        }
+        else {
+            this.mergeDeletePathEdgeInternal(path, jsonState);
+        }
+        return this;
+    }
+    mergeDeletePathEdgeInternal(path, jsonState) {
+        const [parentPath, key] = getParentPathAndKey(path), node = this.getNodeAtPath(path), parent = parentPath ? this.getNodeAtPath(parentPath) : null;
+        if (node) {
+            if (shouldDelete(node.state, jsonState)) {
+                if (parent instanceof Node_1.Node) {
+                    delete parent.children[key];
+                    this.emit("change", parentPath, parent.toJSON());
+                }
+            }
+        }
+        return this;
+    }
     setPathInternal(path, value, state) {
         if (value instanceof Ref_1.Ref) {
             this.setEdgePathInternal(path, value, state);
@@ -135,13 +176,13 @@ class Graph extends eventemitter3_1.EventEmitter {
     }
     createNodeAt(path, state) {
         const keys = path.split(types_1.SEPERATOR), key = keys.shift();
-        let parent = this.entries.get(key);
+        let parent = this.entries[key];
         if (!(parent instanceof Node_1.Node)) {
             parent = new Node_1.Node(this, null, key, state);
-            this.entries.set(key, parent);
+            this.entries[key] = parent;
         }
         return keys.reduce((parent, key) => {
-            const node = parent.children.get(key);
+            const node = parent.children[key];
             if (node instanceof Node_1.Node) {
                 return node;
             }
@@ -154,13 +195,13 @@ class Graph extends eventemitter3_1.EventEmitter {
                 }
             }
             const newNode = new Node_1.Node(this, parent, key, state);
-            parent.children.set(key, newNode);
+            parent.children[key] = newNode;
             return newNode;
         }, parent);
     }
     createEdgeAt(path, state) {
         const [parentPath, key] = getParentPathAndKey(path), parent = parentPath ? this.createNodeAt(parentPath, state) : null;
-        let node = parent === null || parent === void 0 ? void 0 : parent.children.get(key);
+        let node = parent === null || parent === void 0 ? void 0 : parent.children[key];
         if (node instanceof Edge_1.Edge) {
             node.state = state;
             return node;
@@ -168,12 +209,20 @@ class Graph extends eventemitter3_1.EventEmitter {
         else {
             node = new Edge_1.Edge(this, parent, key, state, null);
             if (parent) {
-                parent === null || parent === void 0 ? void 0 : parent.children.set(key, node);
+                parent.children[key] = node;
             }
             else {
-                this.entries.set(key, node);
+                this.entries[key] = node;
             }
             return node;
+        }
+    }
+    deletePathInternal(path, state) {
+        const [parentPath, key] = getParentPathAndKey(path), parent = parentPath ? this.createNodeAt(parentPath, state) : null;
+        if (parent) {
+            delete parent.children[key];
+            this.emit("change", path, { state, delete: true });
+            this.emit("set", path, { state, delete: true });
         }
     }
 }
@@ -189,14 +238,14 @@ function getParentPathAndKey(path) {
 }
 exports.getParentPathAndKey = getParentPathAndKey;
 function getNodeAtPath(graph, path, nodes) {
-    const seen = nodes.get(path);
+    const seen = nodes[path];
     if (seen !== undefined) {
         return seen || undefined;
     }
     else {
-        const keys = path.split(types_1.SEPERATOR), key = keys.shift(), node = graph.getEntries().get(key);
+        const keys = path.split(types_1.SEPERATOR), key = keys.shift(), node = graph.getEntries()[key];
         if (node && keys.length) {
-            nodes.set(key, node);
+            nodes[key] = node;
             return getNodeAtPathInternal(graph, key, node, keys, nodes);
         }
         else {
@@ -204,22 +253,22 @@ function getNodeAtPath(graph, path, nodes) {
         }
     }
 }
-function getNodeAtPathInternal(graph, path, node, keys, nodes = new Map()) {
+function getNodeAtPathInternal(graph, path, node, keys, nodes) {
     if (node instanceof Node_1.Node) {
         const key = keys.shift();
         if (key) {
-            const child = node.children.get(key), childPath = path + types_1.SEPERATOR + key;
+            const child = node.children[key], childPath = path + types_1.SEPERATOR + key;
             if (child) {
-                nodes.set(childPath, child);
+                nodes[childPath] = child;
                 return getNodeAtPathInternal(graph, childPath, child, keys, nodes);
             }
             else {
-                nodes.set(childPath, null);
+                nodes[childPath] = null;
                 return undefined;
             }
         }
         else {
-            nodes.set(path, node);
+            nodes[path] = node;
             return node;
         }
     }
@@ -229,12 +278,12 @@ function getNodeAtPathInternal(graph, path, node, keys, nodes = new Map()) {
             return getNodeAtPathInternal(graph, path, refNode, keys, nodes);
         }
         else {
-            nodes.set(refPath, null);
+            nodes[refPath] = null;
             return undefined;
         }
     }
     else {
-        nodes.set(path, node);
+        nodes[path] = node;
         return node;
     }
 }
@@ -244,7 +293,7 @@ function getValueAtNode(graph, node, seen = new Set()) {
     }
     else if (node instanceof Node_1.Node) {
         const children = {};
-        for (const [k, c] of node.children) {
+        for (const [k, c] of Object.entries(node.children)) {
             const childValue = c instanceof Edge_1.Edge
                 ? c.value
                 : (children[k] = new Ref_1.Ref(graph, c.getPath(), c.state));
@@ -270,4 +319,7 @@ function shouldOverwrite(localValue, localState, remoteValue, remoteState) {
         (localState === remoteState
             ? JSON.stringify(remoteValue).length > JSON.stringify(localValue).length
             : true));
+}
+function shouldDelete(localState, remoteState) {
+    return remoteState >= localState;
 }

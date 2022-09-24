@@ -1,6 +1,7 @@
 import { EventEmitter } from "eventemitter3";
 import type { IEdgeJSON } from "./Edge";
 import { Edge } from "./Edge";
+import type { IEntryJSON } from "./Entry";
 import type { INodeJSON } from "./Node";
 import { Node } from "./Node";
 import type { IRefJSON } from "./Ref";
@@ -14,21 +15,35 @@ import type {
 } from "./types";
 import { SEPERATOR } from "./types";
 
+export interface IDeleteJSON extends IEntryJSON {
+  delete: true;
+}
+
 export interface IGraphEvents<T extends IGraph> {
   get(this: Graph<T>, path: string): void;
-  set(this: Graph<T>, path: string, value: IRefJSON | IEdgeJSON): void;
+  set(
+    this: Graph<T>,
+    path: string,
+    value: IRefJSON | IEdgeJSON | INodeJSON | IDeleteJSON
+  ): void;
   change(
     this: Graph<T>,
     path: string,
-    value: IRefJSON | IEdgeJSON | INodeJSON
+    value: IRefJSON | IEdgeJSON | INodeJSON | IDeleteJSON
   ): void;
+}
+
+export interface IGraphJSON extends IEntryJSON {
+  entries: {
+    [key: string]: IEdgeJSON | INodeJSON | IPrimitive;
+  };
 }
 
 export class Graph<T extends IGraph = IGraph> extends EventEmitter<
   IGraphEvents<T>
 > {
   protected state = Date.now();
-  protected entries: Map<string, Node | Edge> = new Map();
+  protected entries: { [key: string]: Node | Edge } = {};
   protected listeningPaths: Set<string> = new Set();
   protected waitMS = 5000;
 
@@ -40,8 +55,12 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     return this.waitMS;
   }
 
-  getEntries(): ReadonlyMap<string, Node | Edge> {
+  getEntries() {
     return this.entries;
+  }
+
+  getState() {
+    return this.state;
   }
 
   get<K extends IKeyOf<T> = IKeyOf<T>>(key: K): Ref<T[K]> {
@@ -67,7 +86,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
   }
 
   getNodeAtPath(path: string): Node | Edge | undefined {
-    return getNodeAtPath(this, path, new Map());
+    return getNodeAtPath(this, path, {});
   }
 
   set(path: string, value: IGraphValue) {
@@ -76,7 +95,13 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     return this;
   }
 
-  merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON) {
+  delete(path: string) {
+    this.state = Date.now();
+    this.deletePathInternal(path, this.state);
+    return this;
+  }
+
+  merge(path: string, json: IRefJSON | IEdgeJSON | INodeJSON | IDeleteJSON) {
     if (this.isListening(path)) {
       const maxState = Date.now();
 
@@ -84,6 +109,8 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
         for (const [key, child] of Object.entries(json.children)) {
           this.mergePathInternal(path + SEPERATOR + key, child, maxState);
         }
+      } else if ("delete" in json) {
+        this.mergeDeletePathInternal(path, json.state, maxState);
       } else {
         this.mergePathInternal(path, json, maxState);
       }
@@ -106,6 +133,16 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
       }
     }
     return false;
+  }
+
+  toJSON(): IGraphJSON {
+    return {
+      state: this.state,
+      entries: Object.entries(this.entries).reduce((entries, [key, value]) => {
+        entries[key] = value.toJSON() as any;
+        return entries;
+      }, {} as IGraphJSON["entries"]),
+    };
   }
 
   private mergePathInternal(
@@ -161,6 +198,38 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     return this;
   }
 
+  private mergeDeletePathInternal(
+    path: string,
+    jsonState: number,
+    maxState: number
+  ) {
+    if (jsonState > maxState) {
+      setTimeout(
+        () => this.mergeDeletePathEdgeInternal(path, jsonState),
+        jsonState - maxState
+      );
+    } else {
+      this.mergeDeletePathEdgeInternal(path, jsonState);
+    }
+    return this;
+  }
+
+  private mergeDeletePathEdgeInternal(path: string, jsonState: number) {
+    const [parentPath, key] = getParentPathAndKey(path),
+      node = this.getNodeAtPath(path),
+      parent = parentPath ? this.getNodeAtPath(parentPath) : null;
+
+    if (node) {
+      if (shouldDelete(node.state, jsonState)) {
+        if (parent instanceof Node) {
+          delete parent.children[key];
+          this.emit("change", parentPath as string, parent.toJSON());
+        }
+      }
+    }
+    return this;
+  }
+
   private setPathInternal(path: string, value: IGraphValue, state: number) {
     if (value instanceof Ref) {
       this.setEdgePathInternal(path, value, state);
@@ -191,15 +260,15 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     const keys = path.split(SEPERATOR),
       key = keys.shift() as string;
 
-    let parent = this.entries.get(key);
+    let parent = this.entries[key];
 
     if (!(parent instanceof Node)) {
       parent = new Node(this, null, key, state);
-      this.entries.set(key, parent);
+      this.entries[key] = parent;
     }
 
     return keys.reduce<Node>((parent, key) => {
-      const node = parent.children.get(key);
+      const node = parent.children[key];
 
       if (node instanceof Node) {
         return node;
@@ -213,7 +282,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
         }
       }
       const newNode = new Node(this, parent, key, state);
-      parent.children.set(key, newNode);
+      parent.children[key] = newNode;
       return newNode;
     }, parent);
   }
@@ -222,7 +291,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     const [parentPath, key] = getParentPathAndKey(path),
       parent = parentPath ? this.createNodeAt(parentPath, state) : null;
 
-    let node = parent?.children.get(key);
+    let node = parent?.children[key];
 
     if (node instanceof Edge) {
       node.state = state;
@@ -230,11 +299,22 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     } else {
       node = new Edge(this, parent, key, state, null);
       if (parent) {
-        parent?.children.set(key, node);
+        parent.children[key] = node;
       } else {
-        this.entries.set(key, node);
+        this.entries[key] = node;
       }
       return node;
+    }
+  }
+
+  private deletePathInternal(path: string, state: number) {
+    const [parentPath, key] = getParentPathAndKey(path),
+      parent = parentPath ? this.createNodeAt(parentPath, state) : null;
+
+    if (parent) {
+      delete parent.children[key];
+      this.emit("change", path, { state, delete: true });
+      this.emit("set", path, { state, delete: true });
     }
   }
 }
@@ -254,19 +334,19 @@ export function getParentPathAndKey(
 function getNodeAtPath(
   graph: Graph,
   path: string,
-  nodes: Map<string, Node | Edge | null>
+  nodes: { [key: string]: Node | Edge | null }
 ) {
-  const seen = nodes.get(path);
+  const seen = nodes[path];
 
   if (seen !== undefined) {
     return seen || undefined;
   } else {
     const keys = path.split(SEPERATOR),
       key = keys.shift() as string,
-      node = graph.getEntries().get(key);
+      node = graph.getEntries()[key];
 
     if (node && keys.length) {
-      nodes.set(key, node);
+      nodes[key] = node;
       return getNodeAtPathInternal(graph, key, node, keys, nodes);
     } else {
       return node;
@@ -279,24 +359,24 @@ function getNodeAtPathInternal(
   path: string,
   node: Node | Edge,
   keys: string[],
-  nodes: Map<string, Node | Edge | null> = new Map()
+  nodes: { [key: string]: Node | Edge | null }
 ): Node | Edge | undefined {
   if (node instanceof Node) {
     const key = keys.shift() as string;
 
     if (key) {
-      const child = node.children.get(key),
+      const child = node.children[key],
         childPath = path + SEPERATOR + key;
 
       if (child) {
-        nodes.set(childPath, child);
+        nodes[childPath] = child;
         return getNodeAtPathInternal(graph, childPath, child, keys, nodes);
       } else {
-        nodes.set(childPath, null);
+        nodes[childPath] = null;
         return undefined;
       }
     } else {
-      nodes.set(path, node);
+      nodes[path] = node;
       return node;
     }
   } else if (node.value instanceof Ref) {
@@ -306,11 +386,11 @@ function getNodeAtPathInternal(
     if (refNode && refNode !== node) {
       return getNodeAtPathInternal(graph, path, refNode, keys, nodes);
     } else {
-      nodes.set(refPath, null);
+      nodes[refPath] = null;
       return undefined;
     }
   } else {
-    nodes.set(path, node);
+    nodes[path] = node;
     return node;
   }
 }
@@ -324,7 +404,7 @@ function getValueAtNode<T extends IGraphValue = IGraphValue>(
     return undefined;
   } else if (node instanceof Node) {
     const children: IGraph = {};
-    for (const [k, c] of node.children) {
+    for (const [k, c] of Object.entries(node.children)) {
       const childValue =
         c instanceof Edge
           ? c.value
@@ -356,4 +436,8 @@ function shouldOverwrite(
       ? JSON.stringify(remoteValue).length > JSON.stringify(localValue).length
       : true)
   );
+}
+
+function shouldDelete(localState: number, remoteState: number) {
+  return remoteState >= localState;
 }
