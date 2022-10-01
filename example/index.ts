@@ -38,7 +38,12 @@ type IState = {
 };
 
 async function onLoad() {
-  const peer = new Peer(io("wss://mesh.aicacia.com/graph-example"), SimplePeer),
+  const peer = new Peer(
+      io("wss://mesh.aicacia.com/graph-example", {
+        withCredentials: true,
+      }),
+      SimplePeer
+    ),
     mesh = new Mesh<IMessage>(peer),
     graph = new Graph<IState>();
 
