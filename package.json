@@ -1,6 +1,6 @@
 {
   "name": "@aicacia/graph",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "graph structure",
   "repository": {
     "type": "git",
@@ -32,38 +32,41 @@
   "readmeFilename": "README.md",
   "devDependencies": {
     "@aicacia/mesh": "0",
-    "@rollup/plugin-commonjs": "22",
-    "@rollup/plugin-node-resolve": "14",
-    "@rollup/plugin-typescript": "8",
+    "@rollup/plugin-commonjs": "24",
+    "@rollup/plugin-node-resolve": "15",
+    "@rollup/plugin-typescript": "11",
     "@types/tape": "4",
     "@typescript-eslint/eslint-plugin": "5",
     "@typescript-eslint/parser": "5",
+    "buffer": "5",
     "eslint": "8",
     "eslint-config-prettier": "8",
-    "socket.io-client": "4",
     "eslint-plugin-prettier": "4",
     "events": "3",
     "husky": "8",
     "nyc": "15",
     "parcel": "2",
+    "parcel-transformer-svelte3-plus": "0",
     "prettier": "2",
     "process": "0",
     "rollup-plugin-esm-import-to-url": "2",
     "rollup-plugin-terser": "7",
     "simple-peer": "9",
+    "socket.io-client": "4",
+    "svelte": "3",
     "tap-nyc": "1",
     "tap-spec": "5",
     "tape": "5",
     "ts-node": "10",
     "tslib": "2",
     "typedoc": "0",
-    "typescript": "4"
+    "typescript": "5"
   },
   "peerDependencies": {
     "tslib": "2"
   },
   "dependencies": {
-    "eventemitter3": "4"
+    "eventemitter3": "5"
   },
   "nyc": {
     "include": [

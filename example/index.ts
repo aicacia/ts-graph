@@ -1,6 +1,7 @@
 import SimplePeer from "simple-peer";
 import { io } from "socket.io-client";
 import { Mesh, Peer } from "@aicacia/mesh";
+import App from "./App.svelte";
 import { Graph, Ref } from "../src";
 import type { IRefJSON, IEdgeJSON, INodeJSON, IDeleteJSON } from "../src";
 
@@ -38,8 +39,13 @@ type IState = {
 };
 
 async function onLoad() {
+  const app = new App({
+    target: document.body,
+  });
+
   const peer = new Peer(
       io("wss://mesh.aicacia.com/graph-example", {
+        transports: ["websocket"],
         withCredentials: true,
       }),
       SimplePeer
@@ -88,25 +94,19 @@ async function onLoad() {
 
   users.on(async (users) => {
     if (users) {
-      const jsonElement = document.getElementById("json") as HTMLElement;
       const json = (
         await Promise.all(Object.values(users).map((ref) => ref.then()))
       ).filter((user) => user !== undefined);
-      jsonElement.innerHTML = JSON.stringify(json, null, 2);
+      app.$set({ json: JSON.stringify(json, null, 2) });
     }
   });
 
-  const nameElement = document.getElementById("name") as HTMLElement;
   graph.get("user").on((user) => {
-    nameElement.innerHTML = user?.name || "";
+    app.$set({ name: user?.name || "" });
   });
 
-  const nameInputElement = document.getElementById("name-input") as HTMLElement;
-  nameInputElement.addEventListener("input", (e) => {
-    users
-      .get(peer.getId())
-      .get("name")
-      .set((e.currentTarget as HTMLInputElement).value);
+  app.$on("change", (e) => {
+    users.get(peer.getId()).get("name").set(e.detail);
   });
 
   users.get(peer.getId()).get("name").set("Anonymous");

@@ -46,6 +46,15 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
   protected entries: { [key: string]: Node | Edge } = {};
   protected listeningPaths: Set<string> = new Set();
   protected waitMS = 5000;
+  protected shouldOverwriteFn: IShouldOverwriteFn = defaultShouldOverwriteFn;
+
+  setShouldOverwriteFn(shouldOverwriteFn: IShouldOverwriteFn) {
+    this.shouldOverwriteFn = shouldOverwriteFn;
+    return this;
+  }
+  getShouldOverwriteFn() {
+    return this.shouldOverwriteFn;
+  }
 
   setWaitMS(waitMS: number) {
     this.waitMS = waitMS;
@@ -172,14 +181,16 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
       "value" in json ? json.value : new Ref(this, json.id, jsonState);
 
     if (node instanceof Edge) {
-      if (shouldOverwrite(node.value, node.state, jsonValue, jsonState)) {
+      if (
+        this.shouldOverwriteFn(node.value, node.state, jsonValue, jsonState)
+      ) {
         node.value = jsonValue;
         node.state = jsonState;
         this.emit("change", node.getPath(), node.toJSON());
       }
     } else if (node instanceof Node) {
       if (
-        shouldOverwrite(
+        this.shouldOverwriteFn(
           new Ref(this, node.getPath(), jsonState),
           node.state,
           jsonValue,
@@ -220,7 +231,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
       parent = parentPath ? this.getNodeAtPath(parentPath) : null;
 
     if (node) {
-      if (shouldDelete(node.state, jsonState)) {
+      if (node.state >= jsonState) {
         if (parent instanceof Node) {
           delete parent.children[key];
           this.emit("change", parentPath as string, parent.toJSON());
@@ -424,7 +435,9 @@ function getValueAtNode<T extends IGraphValue = IGraphValue>(
   }
 }
 
-function shouldOverwrite(
+export type IShouldOverwriteFn = typeof defaultShouldOverwriteFn;
+
+function defaultShouldOverwriteFn(
   localValue: IPrimitive | Ref,
   localState: number,
   remoteValue: IPrimitive | Ref,
@@ -436,8 +449,4 @@ function shouldOverwrite(
       ? JSON.stringify(remoteValue).length > JSON.stringify(localValue).length
       : true)
   );
-}
-
-function shouldDelete(localState: number, remoteState: number) {
-  return remoteState >= localState;
 }
