@@ -1,9 +1,9 @@
 import type { Graph } from "./Graph";
 import { SEPERATOR } from "./types";
 
-export interface IEntryJSON {
+export type IEntryJSON = {
   state: number;
-}
+};
 
 export class Entry {
   graph: Graph;

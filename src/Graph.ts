@@ -12,10 +12,12 @@ import type {
   IKeyOf,
   IRefValue,
   IPrimitive,
+  IValueOf,
 } from "./types";
 import { SEPERATOR } from "./types";
 
-export interface IDeleteJSON extends IEntryJSON {
+export interface IDeleteJSON<T extends IGraphValue = IGraphValue>
+  extends IEntryJSON {
   delete: true;
 }
 
@@ -33,9 +35,12 @@ export interface IGraphEvents<T extends IGraph> {
   ): void;
 }
 
-export interface IGraphJSON extends IEntryJSON {
+export interface IGraphJSON<T extends IGraph = IGraph> extends IEntryJSON {
   entries: {
-    [key: string]: IEdgeJSON | INodeJSON | IPrimitive;
+    [K in IKeyOf<T>]:
+      | IEdgeJSON<T[K]>
+      | INodeJSON<Extract<T[K], IGraph>>
+      | IValueOf<T[K]>;
   };
 }
 
@@ -144,13 +149,13 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     return false;
   }
 
-  toJSON(): IGraphJSON {
+  toJSON(): IGraphJSON<T> {
     return {
       state: this.state,
       entries: Object.entries(this.entries).reduce((entries, [key, value]) => {
-        entries[key] = value.toJSON() as any;
+        entries[key] = value.toJSON();
         return entries;
-      }, {} as IGraphJSON["entries"]),
+      }, {} as { [key: string]: IRefJSON<IGraphValue> | IEdgeJSON<IGraphValue> | INodeJSON<IGraph> }) as IGraphJSON<T>["entries"],
     };
   }
 
@@ -177,8 +182,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
     const jsonState = json.state,
       node = this.getNodeAtPath(path);
 
-    const jsonValue =
-      "value" in json ? json.value : new Ref(this, json.id, jsonState);
+    const jsonValue = jsonToValue(this, json);
 
     if (node instanceof Edge) {
       if (
@@ -308,7 +312,7 @@ export class Graph<T extends IGraph = IGraph> extends EventEmitter<
       node.state = state;
       return node;
     } else {
-      node = new Edge(this, parent, key, state, null);
+      node = new Edge(this, parent, key, state, null as any);
       if (parent) {
         parent.children[key] = node;
       } else {
@@ -449,4 +453,14 @@ function defaultShouldOverwriteFn(
       ? JSON.stringify(remoteValue).length > JSON.stringify(localValue).length
       : true)
   );
+}
+
+function jsonToValue(graph: Graph, json: IEdgeJSON | IRefJSON) {
+  if ("value" in json) {
+    return typeof json.value === "object" && json.value !== null
+      ? new Ref(graph, json.value.id, json.value.state)
+      : json.value;
+  } else {
+    return new Ref(graph, json.id, json.state);
+  }
 }

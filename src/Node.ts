@@ -2,17 +2,18 @@ import { Entry } from "./Entry";
 import type { Edge, IEdgeJSON } from "./Edge";
 import type { IEntryJSON } from "./Entry";
 import type { IRefJSON } from "./Ref";
+import { IGraph, IKeyOf } from "./types";
 
-export interface INodeJSON extends IEntryJSON {
+export interface INodeJSON<T extends IGraph = IGraph> extends IEntryJSON {
   children: {
-    [key: string]: IEdgeJSON | IRefJSON;
+    [K in IKeyOf<T>]: IEdgeJSON<T[K]> | IRefJSON<T[K]>;
   };
 }
 
-export class Node extends Entry {
-  children: { [key: string]: Edge | Node } = {};
+export class Node<T extends IGraph = IGraph> extends Entry {
+  children: { [key: string]: Edge<T> | Node<T> } = {};
 
-  toJSON(): INodeJSON {
+  toJSON(): INodeJSON<T> {
     return {
       ...super.toJSON(),
       children: Object.entries(this.children).reduce(
@@ -24,8 +25,8 @@ export class Node extends Entry {
           }
           return children;
         },
-        {} as INodeJSON["children"]
-      ),
+        {} as { [key: string]: IEdgeJSON | IRefJSON }
+      ) as INodeJSON<T>["children"],
     };
   }
 }

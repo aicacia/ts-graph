@@ -9,7 +9,8 @@ import {
   SEPERATOR,
 } from "./types";
 
-export interface IRefJSON extends IEntryJSON {
+export interface IRefJSON<T extends IGraphValue = IGraphValue>
+  extends IEntryJSON {
   id: string;
 }
 
@@ -126,6 +127,7 @@ export class Ref<T extends IGraphValue = IGraphValue>
     if (value !== undefined) {
       promise = Promise.resolve<IRefValue<T> | undefined>(value);
     } else {
+      const timeoutMs = this.getWaitMS();
       promise = new Promise((resolve, reject) => {
         const off = this.on((value) => {
           clearTimeout(timeoutId);
@@ -135,18 +137,16 @@ export class Ref<T extends IGraphValue = IGraphValue>
         const timeoutId = setTimeout(() => {
           off();
           reject(
-            new Error(
-              `Request took longer than ${this.getWaitMS()}ms to resolve`
-            )
+            new Error(`Request took longer than ${timeoutMs}ms to resolve`)
           );
-        }, this.getWaitMS());
+        }, timeoutMs);
       });
     }
 
     return promise.then(onfulfilled, onrejected);
   }
 
-  toJSON(): IRefJSON {
+  toJSON(): IRefJSON<T> {
     return {
       id: this.path,
       state: this.state,

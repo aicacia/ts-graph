@@ -5,9 +5,7 @@ export type IValueOf<T> = Extract<T, IPrimitive>;
 
 export type IPrimitive = string | number | boolean | null;
 
-export type IGraph = { [S in string]: IGraphValue } & {
-  [S in number]: IGraphValue;
-};
+export type IGraph = { [key: string]: IGraphValue };
 export type IGraphValue = IPrimitive | Ref | IGraph;
 
 export type IRefValueChild<T extends IGraphValue> = T extends IGraph
